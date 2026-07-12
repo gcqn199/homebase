@@ -409,7 +409,7 @@ function HomebasePassdown() {
   /* ----- create form ----- */
   const [form, setForm] = useState({ entity: "", zone: "Base", desc: "", priority: 3, status: "Running" });
   const submitCreate = () => {
-    if (!form.entity.trim() || !form.desc.trim()) return flash("Entity and Description are required.");
+    if (!form.entity.trim() || !form.desc.trim()) return flash("Category and Description are required.");
     mutate((s) => {
       const id = s.woSeq + 1;
       const wo = {
@@ -563,7 +563,7 @@ function HomebasePassdown() {
             <div className="createForm">
               <b>New Work Order</b>
               <div className="createGrid">
-                <label>Entity
+                <label>Category
                   <input value={form.entity} placeholder="e.g. HVAC01" onChange={(e) => setForm({ ...form, entity: e.target.value })} />
                 </label>
                 <label>Zone
@@ -598,7 +598,7 @@ function HomebasePassdown() {
                 <tr>
                   <th className="thSearch">
                     <span className="mag">⌕</span>
-                    <input className="searchBox" value={search} placeholder="ENTITY" onChange={(e) => setSearch(e.target.value)} />
+                    <input className="searchBox" value={search} placeholder="CATEGORY" onChange={(e) => setSearch(e.target.value)} />
                   </th>
                   <th style={{ width: 120 }}>STATUS ▾</th>
                   <th>DESCRIPTION</th>
