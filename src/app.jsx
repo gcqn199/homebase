@@ -34,7 +34,7 @@ function todayStr() {
 }
 
 const PRIORITIES = [
-  { id: 1, label: "Priority 1: EMERGENCY - Safety / Critical Systems", band: "band1" },
+  { id: 1, label: "Priority 1: EMERGENCY - Critical", band: "band1" },
   { id: 2, label: "Priority 2: URGENT - This Week", band: "band2" },
   { id: 3, label: "Priority 3: ROUTINE - Standard Home Work", band: "band3" },
   { id: 4, label: "Priority 4: SCHEDULED - Preventive Maintenance", band: "band4" },
@@ -278,12 +278,11 @@ async function remotePut(cfg, state) {
 
 /* ---------------- small pieces ---------------- */
 
-function StatusCell({ level, status }) {
+function StatusCell({ status }) {
   const m = STATUS_META[status] || STATUS_META.Running;
   return (
     <span className="statusCell" title={m.tip}>
-      <span className={`stIcon ${m.cls}`}>{m.icon}</span>
-      <b>{level}</b>&nbsp;{status}
+      {status}
     </span>
   );
 }
@@ -636,7 +635,7 @@ function HomebasePassdown() {
                             </div>
                             <div className="entitySub">
                               <span className="zone">{w.zone}</span>
-                              <StatusCell level={w.level} status={w.status} />
+                              <StatusCell status={w.status} />
                             </div>
                           </td>
                           <td className="flowCell"><a onClick={() => openDetail(w.id)}>{w.flow}</a></td>
