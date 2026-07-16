@@ -97,6 +97,7 @@ function migrateWO(w) {
     out = { ...out, status: s };
   }
   if (out && out.deadline === undefined) out = { ...out, deadline: null };
+  if (out && out.system === undefined) out = { ...out, system: null };
   return out;
 }
 
@@ -108,6 +109,80 @@ function migrateState(s) {
 
 const PART_FLOW = ["Requested", "Ordered", "Shipped", "Received", "Installed"];
 
+/* ---------- household systems ---------- */
+const SYSTEM_GROUPS = [
+  {
+    group: "Household Systems",
+    cls: "sysG1",
+    items: [
+      { code: "HVAC", label: "Heating/cooling" },
+      { code: "PLUMB", label: "Plumbing" },
+      { code: "ELEC", label: "Electrical" },
+      { code: "APPL", label: "Appliances" },
+    ],
+  },
+  {
+    group: "Recurring Work",
+    cls: "sysG2",
+    items: [
+      { code: "CLEAN", label: "Cleaning" },
+      { code: "LAUNDRY", label: "Laundry systems" },
+      { code: "AUTO", label: "Cars/trucks" },
+      { code: "AUTO-MAINT", label: "Scheduled vehicle maintenance" },
+    ],
+  },
+  {
+    group: "Interests/Non-Urgent",
+    cls: "sysG3",
+    items: [
+      { code: "HOBBY", label: "Hobbies/crafts" },
+      { code: "PROJ", label: "Home improvement projects" },
+      { code: "ORG", label: "Organization/decluttering" },
+      { code: "TECH", label: "Home tech/network/smart home" },
+    ],
+  },
+  {
+    group: "Admin",
+    cls: "sysG4",
+    items: [
+      { code: "FINANCE", label: "Bills/finances" },
+      { code: "ADMIN", label: "Household admin/paperwork" },
+      { code: "PET", label: "Pet care" },
+    ],
+  },
+];
+
+const SYSTEM_META = {};
+for (const g of SYSTEM_GROUPS) for (const it of g.items) SYSTEM_META[it.code] = { ...it, group: g.group, cls: g.cls };
+
+function SystemBadge({ code, onClick }) {
+  const m = SYSTEM_META[code];
+  if (!m) return null;
+  return (
+    <span className={`sysBadge ${m.cls}`} title={`${m.group} — ${m.label}`} onClick={onClick}>
+      {code}
+    </span>
+  );
+}
+
+/* Grouped <option> list for system selects (create form, row menu, detail, filter). */
+function SystemOptions({ noneLabel = "— none —" }) {
+  return (
+    <>
+      <option value="">{noneLabel}</option>
+      {SYSTEM_GROUPS.map((g) => (
+        <optgroup key={g.group} label={g.group}>
+          {g.items.map((it) => (
+            <option key={it.code} value={it.code}>
+              {it.code} — {it.label}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </>
+  );
+}
+
 /* ---------- demo seed ---------- */
 function seedData() {
   const t = Date.now();
@@ -116,7 +191,7 @@ function seedData() {
   let partSeq = 100;
   const workOrders = [
     {
-      id: nwo(), entity: "WH01", zone: "Base", level: "L8", status: "In Progress", priority: 1,
+      id: nwo(), entity: "WH01", zone: "Base", level: "L8", status: "In Progress", priority: 1, system: "PLUMB",
       flow: "Waiting Parts",
       desc: "Water heater leaking at T&P relief valve",
       comment: "Supply valve shut off. Replacement valve ordered (SupplyHouse). Household on cold-water protocol.",
@@ -139,7 +214,7 @@ function seedData() {
       ],
     },
     {
-      id: nwo(), entity: "HVAC01", zone: "Base", level: "L8", status: "Open", priority: 2,
+      id: nwo(), entity: "HVAC01", zone: "Base", level: "L8", status: "Open", priority: 2, system: "HVAC",
       flow: "Open",
       desc: "AC not cooling upstairs zone (Zone 2)",
       comment: "Run capacitor suspected — reading 3.1µF on a 5µF spec. Part in garage stock bin B3.",
@@ -156,7 +231,7 @@ function seedData() {
       log: [{ by: "C. Kuehn", ts: t - 30 * H, text: "Zone 2 blowing warm. Compressor hums, fan slow-start." }],
     },
     {
-      id: nwo(), entity: "GDO01", zone: "Gar", level: "L8", status: "Open", priority: 2,
+      id: nwo(), entity: "GDO01", zone: "Gar", level: "L8", status: "Open", priority: 2, system: "APPL",
       flow: "Open",
       desc: "Garage door opener grinding on open cycle",
       comment: "Bundle with rail lube PM if time permits.",
@@ -170,7 +245,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "LAWN01", zone: "Yard", level: "L8", status: "Open", priority: 3,
+      id: nwo(), entity: "LAWN01", zone: "Yard", level: "L8", status: "Open", priority: 3, system: "CLEAN",
       flow: "Open",
       desc: "Weekly mow + edge + trim",
       comment: "Add a value",
@@ -184,7 +259,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "GUTR01", zone: "Roof", level: "L8", status: "Open", priority: 3,
+      id: nwo(), entity: "GUTR01", zone: "Roof", level: "L8", status: "Open", priority: 3, system: "CLEAN",
       flow: "Open",
       desc: "Clear downspout — rear NE corner overflowing",
       comment: "Please follow ladder-safety RFC if working above 6 ft solo.",
@@ -198,7 +273,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "DW01", zone: "Kitch", level: "L8", status: "On Hold", priority: 3,
+      id: nwo(), entity: "DW01", zone: "Kitch", level: "L8", status: "On Hold", priority: 3, system: "APPL",
       flow: "On Hold",
       desc: "Dishwasher lower rack wheel replacement",
       comment: "Cosmetic / usability. On hold pending parts order consolidation.",
@@ -212,7 +287,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "HVAC01", zone: "Base", level: "L8", status: "In Progress", priority: 4,
+      id: nwo(), entity: "HVAC01", zone: "Base", level: "L8", status: "In Progress", priority: 4, system: "HVAC",
       flow: "Data Due",
       desc: "Monthly filter change (MERV 13) — both returns",
       comment: "Bundle into consumable/weekly PMs as they come due, and as time permits.",
@@ -226,7 +301,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "SMK01", zone: "Base", level: "L8", status: "Open", priority: 4,
+      id: nwo(), entity: "SMK01", zone: "Base", level: "L8", status: "Open", priority: 4, system: "ELEC",
       flow: "Open",
       desc: "Smoke / CO detector test + battery rotation (all 6 units)",
       comment: "Hallway unit chirped once — replace that battery first.",
@@ -240,7 +315,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "DECK01", zone: "Yard", level: "L5", status: "In Progress", priority: 5,
+      id: nwo(), entity: "DECK01", zone: "Yard", level: "L5", status: "In Progress", priority: 5, system: "PROJ",
       flow: "Waiting Wx",
       desc: "Deck sand + re-stain project (SS + TTV)",
       comment: "Needs 3 consecutive dry days. Keep this open, to be used upon weather window.",
@@ -258,7 +333,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "PAINT01", zone: "Base", level: "L6", status: "Open", priority: 5,
+      id: nwo(), entity: "PAINT01", zone: "Base", level: "L6", status: "Open", priority: 5, system: "PROJ",
       flow: "Open",
       desc: "Hallway scuff touch-up (SW Agreeable Gray)",
       comment: "Add a value",
@@ -460,7 +535,7 @@ function DeadlineCalendar({ workOrders, onOpen, onRefresh }) {
                   <span
                     key={w.id}
                     className={`calChip cp${w.priority}` + (isOverdue(w) ? " calOver" : "")}
-                    title={`WO #${w.id} — ${w.desc} (P${w.priority}, ${w.status})`}
+                    title={`WO #${w.id} — ${w.desc} (P${w.priority}, ${w.status}${w.system ? ", " + w.system : ""})`}
                     onClick={() => onOpen(w.id)}
                   >
                     {w.entity}
@@ -576,14 +651,22 @@ function App() {
 
   const { workOrders, timePMs, usagePMs, parts, dailyText } = state;
 
+  const [sysFilter, setSysFilter] = useState("");
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q
-      ? workOrders.filter(
-          (w) => w.entity.toLowerCase().includes(q) || w.desc.toLowerCase().includes(q) || String(w.id).includes(q)
-        )
-      : workOrders;
-  }, [workOrders, query]);
+    let list = workOrders;
+    if (sysFilter) list = list.filter((w) => (w.system || "") === sysFilter);
+    if (q)
+      list = list.filter(
+        (w) =>
+          w.entity.toLowerCase().includes(q) ||
+          w.desc.toLowerCase().includes(q) ||
+          String(w.id).includes(q) ||
+          (w.system || "").toLowerCase().includes(q)
+      );
+    return list;
+  }, [workOrders, query, sysFilter]);
 
   const updateWO = (id, patch) =>
     mutate((s) => ({
@@ -611,6 +694,12 @@ function App() {
     setRowMenu(null);
     updateWO(w.id, { deadline: ts });
     flash(ts == null ? `WO #${w.id}: deadline cleared.` : `WO #${w.id} deadline → ${fmtDeadline(ts)}`);
+  };
+
+  const setSystemFor = (w, code) => {
+    setRowMenu(null);
+    updateWO(w.id, { system: code });
+    flash(code == null ? `WO #${w.id}: system cleared.` : `WO #${w.id} system → ${code}`);
   };
 
   /* drag to reprioritize */
@@ -661,7 +750,7 @@ function App() {
 
   /* create form */
   const [form, setForm] = useState({
-    entity: "", zone: "Base", desc: "", priority: 3, status: "Open",
+    entity: "", zone: "Base", desc: "", priority: 3, status: "Open", system: "",
     dlPick: { mode: "none", date: "" },
   });
   const createWO = () => {
@@ -689,13 +778,14 @@ function App() {
         created: Date.now(),
         createdBy: me,
         deadline: deadlineFromPick(form.dlPick),
+        system: form.system || null,
         gameplan: [],
         log: [],
       };
       flash(`Work Order #${id} created.`);
       return { ...s, woSeq: id, workOrders: [wo, ...s.workOrders] };
     });
-    setForm({ entity: "", zone: "Base", desc: "", priority: 3, status: "Open", dlPick: { mode: "none", date: "" } });
+    setForm({ entity: "", zone: "Base", desc: "", priority: 3, status: "Open", system: "", dlPick: { mode: "none", date: "" } });
     setShowCreate(false);
   };
 
@@ -739,6 +829,7 @@ function App() {
         rootCause: "N/A", preventable: "N/A", assigned: "On-Call Homeowner",
         created: Date.now(), createdBy: me,
         deadline: null,
+        system: null,
         gameplan: [], log: [],
       };
       flash(`Work Order #${id} created from ${name}.`);
@@ -890,6 +981,12 @@ function App() {
               <input type="checkbox" checked={showBulk} onChange={(e) => setShowBulk(e.target.checked)} />
               Bulk Update
             </label>
+            <label className="chk sysFilter">
+              System
+              <select value={sysFilter} onChange={(e) => setSysFilter(e.target.value)}>
+                <SystemOptions noneLabel="All" />
+              </select>
+            </label>
             {showBulk && (
               <span className="bulkBar">
                 {"Set selected to "}
@@ -944,6 +1041,12 @@ function App() {
                       .map((s) => (
                         <option key={s}>{s}</option>
                       ))}
+                  </select>
+                </label>
+                <label>
+                  System
+                  <select value={form.system} onChange={(e) => setForm({ ...form, system: e.target.value })}>
+                    <SystemOptions />
                   </select>
                 </label>
                 <label>
@@ -1043,8 +1146,46 @@ function App() {
                                   {w.id}
                                 </a>
                               </div>
-                              <div className="entitySub">
+                              <div className="entitySub menuCell">
                                 <span className="zone">{w.zone}</span>
+                                {w.system ? (
+                                  <SystemBadge
+                                    code={w.system}
+                                    onClick={() =>
+                                      setRowMenu(
+                                        rowMenu?.type === "system" && rowMenu.id === w.id
+                                          ? null
+                                          : { type: "system", id: w.id }
+                                      )
+                                    }
+                                  />
+                                ) : (
+                                  <a
+                                    className="sysNone"
+                                    title="Tag a household system"
+                                    onClick={() =>
+                                      setRowMenu(
+                                        rowMenu?.type === "system" && rowMenu.id === w.id
+                                          ? null
+                                          : { type: "system", id: w.id }
+                                      )
+                                    }
+                                  >
+                                    +SYS
+                                  </a>
+                                )}
+                                {rowMenu?.type === "system" && rowMenu.id === w.id && (
+                                  <div className="gearMenu sysMenu">
+                                    <b>System:</b>
+                                    <select
+                                      value={w.system || ""}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => setSystemFor(w, e.target.value || null)}
+                                    >
+                                      <SystemOptions />
+                                    </select>
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td className="flowCell menuCell">
@@ -1500,6 +1641,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, flash }) {
   const [showStatus, setShowStatus] = useState(false);
   const [showParts, setShowParts] = useState(false);
   const [showDeadline, setShowDeadline] = useState(false);
+  const [showSystem, setShowSystem] = useState(false);
   const [dlPick, setDlPick] = useState(() =>
     wo.deadline != null ? { mode: "date", date: tsToDateInput(wo.deadline) } : { mode: "none", date: "" }
   );
@@ -1510,6 +1652,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, flash }) {
     { label: "Edit Details", ic: "✎" },
     { label: "Change Status", ic: "⇄", act: () => setShowStatus((v) => !v) },
     { label: "Set Deadline", ic: "\u{1F4C5}", act: () => setShowDeadline((v) => !v) },
+    { label: "Set System", ic: "\u{1F3E0}", act: () => setShowSystem((v) => !v) },
     {
       label: "Close Entry",
       ic: "✔",
@@ -1597,6 +1740,23 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, flash }) {
           >
             Apply
           </button>
+        </div>
+      )}
+
+      {showSystem && (
+        <div className="statusPicker">
+          {"Set household system: "}
+          <select
+            value={wo.system || ""}
+            onChange={(e) => {
+              const code = e.target.value || null;
+              onUpdate({ system: code });
+              setShowSystem(false);
+              flash(code == null ? "System cleared." : `System → ${code}`);
+            }}
+          >
+            <SystemOptions />
+          </select>
         </div>
       )}
 
@@ -1709,6 +1869,21 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, flash }) {
             <tr>
               <td>Priority:</td>
               <td>{wo.priority}</td>
+            </tr>
+            <tr>
+              <td>System:</td>
+              <td>
+                {wo.system ? (
+                  <>
+                    <SystemBadge code={wo.system} />
+                    {" "}
+                    {SYSTEM_META[wo.system] ? SYSTEM_META[wo.system].label : ""}
+                  </>
+                ) : (
+                  "None"
+                )}{" "}
+                <a onClick={() => setShowSystem((v) => !v)}>change</a>
+              </td>
             </tr>
             <tr>
               <td>Deadline:</td>

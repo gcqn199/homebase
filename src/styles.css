@@ -330,3 +330,17 @@ body { margin: 0; background: #cfd6dd; }
   .ownBtn { padding: 7px 18px; }
   .ownHint { display: none; }
 }
+
+/* household system badges + filter */
+.sysBadge {
+  display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .5px;
+  padding: 0 4px; border: 1px solid rgba(0,0,0,.2); cursor: pointer; white-space: nowrap;
+}
+.sysG1 { background: #dce8f5; color: #1f4f86; border-color: #9db8d6; } /* Household Systems */
+.sysG2 { background: #ddefdd; color: #1c5c34; border-color: #a4c8a4; } /* Recurring Work */
+.sysG3 { background: #ead9f2; color: #5a2d78; border-color: #c3a1d6; } /* Interests/Non-Urgent */
+.sysG4 { background: #e6e9ec; color: #444; border-color: #b4bcc4; }    /* Admin */
+.sysNone { color: #8a99a8; font-size: 9px; text-decoration: underline dashed; white-space: nowrap; }
+.sysMenu { padding: 8px; display: flex; align-items: center; gap: 6px; }
+.sysMenu select { font-size: 16px; max-width: 230px; }
+.sysFilter select { font-size: 16px; padding: 1px 2px; border: 1px solid #8a99a8; max-width: 180px; }
