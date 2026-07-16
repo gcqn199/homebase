@@ -1,0 +1,15 @@
+{
+  "name": "homebase-passdown",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Homebase Passdown build tooling — run `npm run build` after editing src/",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  }
+}

@@ -57,7 +57,18 @@ The sync chip in the header shows the state: green **Synced**, yellow syncing, r
 
 ## Updating the app later
 
-Bring `src/app.jsx` back to Claude, describe the change, and replace `index.html` on your host with the newly built one. The service worker fetches network-first, so phones pick up new versions on next launch (force-quit and reopen if it seems stale).
+**`src/` is the single source of truth. Never edit `index.html` by hand — it's a build artifact.**
+
+The update loop (keeps `src/`, `index.html`, and the deployed app in sync — they drifted once, don't let it happen again):
+
+1. Edit `src/app.jsx` and/or `src/styles.css` (yourself, or in a Claude session with this folder connected).
+2. Run `npm run build` (or `node build.mjs`). This bundles src → `index.html` and auto-bumps the `sw.js` cache version. First run installs pinned deps (Node 18+ required).
+3. Commit **everything that changed** — `src/`, `index.html`, `sw.js` — in one commit, and push.
+4. Phones pick up the new version on next launch (force-quit and reopen if stale).
+
+Claude project knowledge: keep the GitHub repo linked as a *synced source* (it refreshes automatically after each push) and don't upload source files manually — manual uploads go stale.
+
+Rules for any Claude session touching this app: apply changes to `src/` first, rebuild with `build.mjs`, never hand-edit or hand-deliver a standalone `index.html`, and any data-shape change needs a migration in `migrateWO`/`migrateState`.
 
 ## Reset / troubleshooting
 
