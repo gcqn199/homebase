@@ -677,6 +677,11 @@ function App() {
   const openDetail = (id) => setView({ page: "detail", id });
   const detailWO = view.page === "detail" ? workOrders.find((w) => w.id === view.id) : null;
 
+  const closedWOs = useMemo(
+    () => workOrders.filter((w) => w.status === "Closed").sort((a, b) => (b.updated || 0) - (a.updated || 0)),
+    [workOrders]
+  );
+
   /* status + deadline row menus */
   const setStatusFor = (w, s) => {
     setRowMenu(null);
@@ -967,6 +972,9 @@ function App() {
               }}
             >
               Refresh
+            </button>
+            <button className="btnGrad" onClick={() => setView({ page: "archive" })} title="View closed work orders">
+              WOPr - Archive
             </button>
             <label className="chk">
               <input type="checkbox" checked={showCreate} onChange={(e) => setShowCreate(e.target.checked)} />
@@ -1365,11 +1373,96 @@ function App() {
         </div>
       )}
 
+      {view.page === "archive" && (
+        <div className="page">
+          <div className="crumbLine">
+            <a onClick={() => setView({ page: "passdown" })}>{"\u2190"} Passdown</a>
+            {"  /  "}
+            <b>WOPr - Archive</b>
+          </div>
+          <div className="pmHeader">
+            <span className="pmHeaderTitle">{"\u25a1  W O P r  -  A r c h i v e"}</span>
+          </div>
+          <div className="pmSub">
+            {closedWOs.length}
+            {" closed work order(s) "}
+            <button
+              className="btnGrad"
+              onClick={() => {
+                pull();
+                flash("Refreshed at " + fmtShort(Date.now()));
+              }}
+            >
+              Refresh
+            </button>
+          </div>
+          <div className="tableWrap">
+            <table className="grid pmGrid">
+              <thead>
+                <tr className="pmHead">
+                  <th style={{ width: 120 }}>CATEGORY</th>
+                  <th style={{ width: 40 }}>PRI</th>
+                  <th>DESCRIPTION</th>
+                  <th>COMMENT</th>
+                  <th style={{ width: 170 }}>CHECKLISTS</th>
+                  <th style={{ width: 110 }}>CLOSED BY {"\u25be"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {closedWOs.length === 0 && (
+                  <tr className="row">
+                    <td colSpan={6} className="muted">
+                      No closed work orders yet. Entries appear here when a WO is closed.
+                    </td>
+                  </tr>
+                )}
+                {closedWOs.map((w, i) => (
+                  <tr key={w.id} className={i % 2 ? "rowAlt" : "row"}>
+                    <td className="entityCell">
+                      <div className="entityTop">
+                        <b>{w.entity}</b>
+                        <a className="woLink" onClick={() => setView({ page: "detail", id: w.id, back: "archive" })}>
+                          {w.id}
+                        </a>
+                      </div>
+                      {w.system && (
+                        <div className="entitySub">
+                          <SystemBadge code={w.system} />
+                        </div>
+                      )}
+                    </td>
+                    <td className="numCell">P{w.priority}</td>
+                    <td className="descCell" onClick={() => setView({ page: "detail", id: w.id, back: "archive" })}>
+                      {w.desc}
+                    </td>
+                    <td className="commentCell">{w.comment === "Add a value" ? "" : w.comment}</td>
+                    <td className="chkCell">
+                      {w.checklist ? (
+                        <>
+                          <a className="woLink">{w.checklist}</a>
+                          <div className="chkState">{w.checklistState}</div>
+                        </>
+                      ) : (
+                        ""
+                      )}
+                    </td>
+                    <td className="updCell">
+                      <a>{w.updatedBy}</a>
+                      <div className="updTime">{fmtShort(w.updated)}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {view.page === "detail" && detailWO && (
         <DetailPage
           wo={detailWO}
           me={me}
-          onBack={() => setView({ page: "passdown" })}
+          onBack={() => setView({ page: view.back === "archive" ? "archive" : "passdown" })}
           onUpdate={(patch) => updateWO(detailWO.id, patch)}
           onAddPart={(req) => addPart(detailWO.id, detailWO.entity, req)}
           flash={flash}
