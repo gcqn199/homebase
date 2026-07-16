@@ -83,6 +83,8 @@ body { margin: 0; background: #cfd6dd; }
 .row { background: #fff; }
 .rowAlt { background: #f2f6fa; }
 .row:hover, .rowAlt:hover { background: #fdf3d7; }
+.row.dragSrc, .rowAlt.dragSrc { opacity: .4; }
+.row.dragOver, .rowAlt.dragOver { outline: 2px dashed #4f7fbf; outline-offset: -2px; background: #eaf1fa; }
 
 /* priority bands */
 .band td { font-weight: 700; color: #fff; padding: 4px 8px; cursor: pointer; text-shadow: 0 1px 1px rgba(0,0,0,.4); font-size: 11px; }
@@ -96,17 +98,17 @@ body { margin: 0; background: #cfd6dd; }
 
 .entityCell { min-width: 210px; }
 .entityTop { display: flex; align-items: center; gap: 5px; }
+.dragHandle { cursor: grab; color: #8a99a8; font-size: 12px; }
+.dragHandle:active { cursor: grabbing; }
 .rank { display: inline-block; min-width: 14px; text-align: right; color: #555; }
-.d1h { color: #666; font-size: 9px; border: 1px solid #bbb; padding: 0 2px; background: #f2f2f2; }
 .woLink { font-weight: 600; }
 .entitySub { display: flex; align-items: center; gap: 10px; padding-left: 34px; margin-top: 1px; }
 .zone { color: #777; font-size: 9px; }
 .statusCell { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 .stIcon { font-size: 10px; }
-.stRun { color: #1c7a2d; }
-.stUtp { color: #d69a00; }
-.stOoc { color: #c0271a; }
-.stSch { color: #c0271a; }
+.stOpen { color: #1c7a2d; }
+.stProg { color: #1f7ba8; }
+.stHold { color: #d69a00; }
 .stClosed { color: #666; }
 
 .flowCell a { font-weight: 600; }
@@ -248,4 +250,83 @@ body { margin: 0; background: #cfd6dd; }
   .ribBtn { width: 88px; }
   .dtBtns button { padding: 9px 12px; }
   .gearMenu div { padding: 10px 12px; }
+  .dragHandle { padding: 4px; }
+}
+
+/* WOPr row menus (status + deadline popovers) */
+.menuCell { position: relative; }
+.stMenu, .dlMenu { left: 4px; top: 18px; }
+.stMenu div .stIcon { margin-right: 4px; }
+.menuCur { background: #dce8f5; font-weight: 700; }
+.dlMenu { min-width: 210px; }
+.dlDateRow { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.dlDateRow input { font-size: 14px; padding: 1px 2px; border: 1px solid #8a99a8; }
+.dlCell a { font-weight: 600; white-space: nowrap; }
+.dlNone { color: #8a99a8; text-decoration: none; }
+.dlOver { color: #c0271a; font-weight: 700; }
+.dlPickRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dlPickRow input[type="date"] { font-size: 16px; padding: 3px 4px; border: 1px solid #8a99a8; }
+
+/* deadline calendar */
+.calNav { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.calMonthLb { min-width: 108px; text-align: center; letter-spacing: 0; }
+.calWrap { background: #fff; border: 1px solid #8a99a8; margin-bottom: 14px; }
+.calGrid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.calDow {
+  background: linear-gradient(#6b7c8d, #46586a); color: #fff;
+  font-size: 9px; font-weight: 700; text-align: center; padding: 3px 0;
+  border-right: 1px solid #37475a;
+}
+.calDay {
+  min-height: 54px; padding: 2px 3px; font-size: 9px;
+  border-right: 1px solid #dde3e9; border-bottom: 1px solid #e6ebf0;
+  overflow: hidden;
+}
+.calDay.out { background: #eef1f4; }
+.calDay.today { background: #fdf3d7; box-shadow: inset 0 0 0 2px #d94f04; }
+.calNum { color: #555; font-weight: 700; }
+.calChip {
+  display: block; color: #fff; border-radius: 2px; padding: 1px 3px; margin-top: 2px;
+  cursor: pointer; font-size: 9px; font-weight: 700; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 1px rgba(0,0,0,.35);
+}
+.calChip.calOver { box-shadow: inset 0 0 0 1px #ffd7d0; text-decoration: underline; }
+.cp1 { background: #c22f1e; }
+.cp2 { background: #d97a12; }
+.cp3 { background: #d3ac0f; }
+.cp4 { background: #1f7ba8; }
+.cp5 { background: #6d3d91; }
+.calLegend {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: #eef1f4; border-top: 1px solid #b8c0c8; padding: 3px 8px; font-size: 9px; color: #444;
+}
+.calLegItem { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; }
+.calSwatch { width: 9px; height: 9px; display: inline-block; border-radius: 2px; }
+.calLegNote { margin-left: auto; font-style: italic; color: #777; }
+
+@media (max-width: 720px) {
+  .calDay { min-height: 46px; }
+  .calLegNote { display: none; }
+  .stMenu div, .dlMenu div { padding: 9px 10px; }
+}
+
+/* owner toggle bar */
+.ownerBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ownBtn {
+  font-size: 11px; cursor: pointer; padding: 3px 16px; border-radius: 3px;
+  border: 1px solid #8a99a8; background: linear-gradient(#f7f9fb, #dfe6ec);
+  font-weight: 700; color: #46586a;
+}
+.ownBtn.ownOn {
+  background: linear-gradient(#f4600c, #d94f04); color: #fff;
+  border-color: #a33a00; text-shadow: 0 1px 1px rgba(0,0,0,.3);
+}
+.ownHint { color: #777; font-size: 10px; margin-left: auto; font-style: italic; }
+
+/* WOPr controls bar (sits under the WOPr header) */
+.woprSub { gap: 14px; }
+
+@media (max-width: 720px) {
+  .ownBtn { padding: 7px 18px; }
+  .ownHint { display: none; }
 }
