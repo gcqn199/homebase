@@ -191,7 +191,7 @@ function seedData() {
   let partSeq = 100;
   const workOrders = [
     {
-      id: nwo(), entity: "WH01", zone: "Base", level: "L8", status: "In Progress", priority: 1, system: "PLUMB",
+      id: nwo(), entity: "WH01", level: "L8", status: "In Progress", priority: 1, system: "PLUMB",
       flow: "Waiting Parts",
       desc: "Water heater leaking at T&P relief valve",
       comment: "Supply valve shut off. Replacement valve ordered (SupplyHouse). Household on cold-water protocol.",
@@ -214,7 +214,7 @@ function seedData() {
       ],
     },
     {
-      id: nwo(), entity: "HVAC01", zone: "Base", level: "L8", status: "Open", priority: 2, system: "HVAC",
+      id: nwo(), entity: "HVAC01", level: "L8", status: "Open", priority: 2, system: "HVAC",
       flow: "Open",
       desc: "AC not cooling upstairs zone (Zone 2)",
       comment: "Run capacitor suspected — reading 3.1µF on a 5µF spec. Part in garage stock bin B3.",
@@ -231,7 +231,7 @@ function seedData() {
       log: [{ by: "C. Kuehn", ts: t - 30 * H, text: "Zone 2 blowing warm. Compressor hums, fan slow-start." }],
     },
     {
-      id: nwo(), entity: "GDO01", zone: "Gar", level: "L8", status: "Open", priority: 2, system: "APPL",
+      id: nwo(), entity: "GDO01", level: "L8", status: "Open", priority: 2, system: "APPL",
       flow: "Open",
       desc: "Garage door opener grinding on open cycle",
       comment: "Bundle with rail lube PM if time permits.",
@@ -245,7 +245,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "LAWN01", zone: "Yard", level: "L8", status: "Open", priority: 3, system: "CLEAN",
+      id: nwo(), entity: "LAWN01", level: "L8", status: "Open", priority: 3, system: "CLEAN",
       flow: "Open",
       desc: "Weekly mow + edge + trim",
       comment: "Add a value",
@@ -259,7 +259,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "GUTR01", zone: "Roof", level: "L8", status: "Open", priority: 3, system: "CLEAN",
+      id: nwo(), entity: "GUTR01", level: "L8", status: "Open", priority: 3, system: "CLEAN",
       flow: "Open",
       desc: "Clear downspout — rear NE corner overflowing",
       comment: "Please follow ladder-safety RFC if working above 6 ft solo.",
@@ -273,7 +273,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "DW01", zone: "Kitch", level: "L8", status: "On Hold", priority: 3, system: "APPL",
+      id: nwo(), entity: "DW01", level: "L8", status: "On Hold", priority: 3, system: "APPL",
       flow: "On Hold",
       desc: "Dishwasher lower rack wheel replacement",
       comment: "Cosmetic / usability. On hold pending parts order consolidation.",
@@ -287,7 +287,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "HVAC01", zone: "Base", level: "L8", status: "In Progress", priority: 4, system: "HVAC",
+      id: nwo(), entity: "HVAC01", level: "L8", status: "In Progress", priority: 4, system: "HVAC",
       flow: "Data Due",
       desc: "Monthly filter change (MERV 13) — both returns",
       comment: "Bundle into consumable/weekly PMs as they come due, and as time permits.",
@@ -301,7 +301,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "SMK01", zone: "Base", level: "L8", status: "Open", priority: 4, system: "ELEC",
+      id: nwo(), entity: "SMK01", level: "L8", status: "Open", priority: 4, system: "ELEC",
       flow: "Open",
       desc: "Smoke / CO detector test + battery rotation (all 6 units)",
       comment: "Hallway unit chirped once — replace that battery first.",
@@ -315,7 +315,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "DECK01", zone: "Yard", level: "L5", status: "In Progress", priority: 5, system: "PROJ",
+      id: nwo(), entity: "DECK01", level: "L5", status: "In Progress", priority: 5, system: "PROJ",
       flow: "Waiting Wx",
       desc: "Deck sand + re-stain project (SS + TTV)",
       comment: "Needs 3 consecutive dry days. Keep this open, to be used upon weather window.",
@@ -333,7 +333,7 @@ function seedData() {
       log: [],
     },
     {
-      id: nwo(), entity: "PAINT01", zone: "Base", level: "L6", status: "Open", priority: 5, system: "PROJ",
+      id: nwo(), entity: "PAINT01", level: "L6", status: "Open", priority: 5, system: "PROJ",
       flow: "Open",
       desc: "Hallway scuff touch-up (SW Agreeable Gray)",
       comment: "Add a value",
@@ -363,11 +363,11 @@ function seedData() {
     { id: 4, tool: "FRG01", name: "TSVFridgeWaterFilterPM", count: 5.2, limit: 6, due: 5.5, unit: "mo" },
   ];
   const parts = [
-    { id: ++partSeq, part: 'T&P relief valve 3/4" (Watts 100XL)', tool: "WH01", wo: 6012251, qty: 1, source: "SupplyHouse", status: "Shipped", eta: t + 46 * H, expedite: true },
-    { id: ++partSeq, part: "Run capacitor 5µF 370V", tool: "HVAC01", wo: 6012252, qty: 1, source: "Stock bin B3", status: "Received", eta: null, expedite: false },
-    { id: ++partSeq, part: "MERV 13 filter 20x25x1 (2-pk)", tool: "HVAC01", wo: null, qty: 2, source: "Amazon", status: "Ordered", eta: t + 96 * H, expedite: false },
-    { id: ++partSeq, part: "Dishwasher lower rack wheel kit", tool: "DW01", wo: 6012256, qty: 1, source: "RepairClinic", status: "Requested", eta: null, expedite: false },
-    { id: ++partSeq, part: "9V lithium batteries (6-pk)", tool: "SMK01", wo: null, qty: 1, source: "Costco", status: "Received", eta: null, expedite: false },
+    { id: ++partSeq, part: 'T&P relief valve 3/4" (Watts 100XL)', tool: "WH01", wo: 6012251, qty: 1, source: "SupplyHouse", status: "Shipped", eta: t + 46 * H },
+    { id: ++partSeq, part: "Run capacitor 5µF 370V", tool: "HVAC01", wo: 6012252, qty: 1, source: "Stock bin B3", status: "Received", eta: null },
+    { id: ++partSeq, part: "MERV 13 filter 20x25x1 (2-pk)", tool: "HVAC01", wo: null, qty: 2, source: "Amazon", status: "Ordered", eta: t + 96 * H },
+    { id: ++partSeq, part: "Dishwasher lower rack wheel kit", tool: "DW01", wo: 6012256, qty: 1, source: "RepairClinic", status: "Requested", eta: null },
+    { id: ++partSeq, part: "9V lithium batteries (6-pk)", tool: "SMK01", wo: null, qty: 1, source: "Costco", status: "Received", eta: null },
   ];
   return {
     workOrders, timePMs, usagePMs, parts,
@@ -750,7 +750,7 @@ function App() {
 
   /* create form */
   const [form, setForm] = useState({
-    entity: "", zone: "Base", desc: "", priority: 3, status: "Open", system: "",
+    entity: "", desc: "", priority: 3, status: "Open", system: "",
     dlPick: { mode: "none", date: "" },
   });
   const createWO = () => {
@@ -760,7 +760,6 @@ function App() {
       const wo = {
         id,
         entity: form.entity.trim().toUpperCase(),
-        zone: form.zone,
         level: "L8",
         status: form.status,
         priority: Number(form.priority),
@@ -785,7 +784,7 @@ function App() {
       flash(`Work Order #${id} created.`);
       return { ...s, woSeq: id, workOrders: [wo, ...s.workOrders] };
     });
-    setForm({ entity: "", zone: "Base", desc: "", priority: 3, status: "Open", system: "", dlPick: { mode: "none", date: "" } });
+    setForm({ entity: "", desc: "", priority: 3, status: "Open", system: "", dlPick: { mode: "none", date: "" } });
     setShowCreate(false);
   };
 
@@ -821,7 +820,7 @@ function App() {
     mutate((s) => {
       const id = s.woSeq + 1;
       const wo = {
-        id, entity: tool, zone: "Base", level: "L8", status: "Open", priority: 4, flow: "Open",
+        id, entity: tool, level: "L8", status: "Open", priority: 4, flow: "Open",
         desc: `Execute ${name}`,
         comment: "Generated from OnDeck PM",
         checklist: name, checklistState: "Not Started",
@@ -848,9 +847,6 @@ function App() {
       }),
     }));
 
-  const toggleExpedite = (id) =>
-    mutate((s) => ({ ...s, parts: s.parts.map((p) => (p.id === id ? { ...p, expedite: !p.expedite } : p)) }));
-
   const addPart = (wo, tool, req) => {
     mutate((s) => ({
       ...s,
@@ -866,7 +862,6 @@ function App() {
           source: req.source || "TBD",
           status: "Requested",
           eta: null,
-          expedite: false,
         },
       ],
     }));
@@ -1014,13 +1009,9 @@ function App() {
                   />
                 </label>
                 <label>
-                  Zone
-                  <select value={form.zone} onChange={(e) => setForm({ ...form, zone: e.target.value })}>
-                    <option>Base</option>
-                    <option>Kitch</option>
-                    <option>Yard</option>
-                    <option>Gar</option>
-                    <option>Roof</option>
+                  System
+                  <select value={form.system} onChange={(e) => setForm({ ...form, system: e.target.value })}>
+                    <SystemOptions />
                   </select>
                 </label>
                 <label>
@@ -1041,12 +1032,6 @@ function App() {
                       .map((s) => (
                         <option key={s}>{s}</option>
                       ))}
-                  </select>
-                </label>
-                <label>
-                  System
-                  <select value={form.system} onChange={(e) => setForm({ ...form, system: e.target.value })}>
-                    <SystemOptions />
                   </select>
                 </label>
                 <label>
@@ -1147,7 +1132,6 @@ function App() {
                                 </a>
                               </div>
                               <div className="entitySub menuCell">
-                                <span className="zone">{w.zone}</span>
                                 {w.system ? (
                                   <SystemBadge
                                     code={w.system}
@@ -1283,150 +1267,11 @@ function App() {
             </table>
           </div>
 
-          <div className="pmHeader">
-            <span className="pmHeaderTitle">
-              {"□  O n D e c k  P M s  -  T I M E  B A S E D"}
-            </span>
-            <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
-              to the top {"▲"}
-            </a>
-          </div>
-          <div className="pmSub">
-            Schedules as of {fmtDT(Date.now())}
-            {" "}
-            <button className="btnGrad" onClick={() => flash("PM schedules refreshed.")}>
-              Refresh
-            </button>
-          </div>
-          <div className="tableWrap">
-            <table className="grid pmGrid">
-              <thead>
-                <tr className="pmHead">
-                  <th style={{ width: 56 }}>Actions</th>
-                  <th style={{ width: 90 }}>Tool {"⇅"}</th>
-                  <th>PM Name {"⇅"}</th>
-                  <th style={{ width: 120 }}>PM Status {"⇅"}</th>
-                  <th style={{ width: 66 }}>Pre PM</th>
-                  <th style={{ width: 120 }} className="thHi">
-                    Hours Until Overdue {"↓"}
-                  </th>
-                  <th style={{ width: 100 }}>Hours Until Due</th>
-                  <th style={{ width: 110 }}>Due Date {"⇅"}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...timePMs]
-                  .sort((a, b) => a.due - b.due)
-                  .map((pm, i) => {
-                    const hrsDue = Math.round((pm.due - Date.now()) / H);
-                    const hrsOver = hrsDue + 48;
-                    const st = hrsDue <= -48 ? "OVERDUE" : hrsDue <= 24 ? "DUE" : "OPPORTUNITY";
-                    return (
-                      <tr key={pm.id} className={i % 2 ? "rowAlt" : "row"}>
-                        <td className="gearCell">
-                          <span
-                            className="gear"
-                            onClick={() =>
-                              setGearMenu(gearMenu?.type === "t" && gearMenu.id === pm.id ? null : { type: "t", id: pm.id })
-                            }
-                          >
-                            {"⚙"}
-                          </span>
-                          {gearMenu?.type === "t" && gearMenu.id === pm.id && (
-                            <div className="gearMenu">
-                              <div onClick={() => completeTimePM(pm)}>{"✓"} Mark PM complete</div>
-                              <div onClick={() => createWOFromPM(pm.tool, pm.name)}>+ Create Work Order</div>
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <b>{pm.tool}</b>
-                        </td>
-                        <td className="pmName">{pm.name}</td>
-                        <td>
-                          <PMStatusBadge status={st} />
-                        </td>
-                        <td>{pm.pre}</td>
-                        <td className="numCell hiCol">{hrsOver > 0 ? hrsOver : <span className="neg">{hrsOver}</span>}</td>
-                        <td className="numCell">{hrsDue > 0 ? hrsDue : ""}</td>
-                        <td className="numCell">{fmtDT(pm.due)}</td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
+          {/* OnDeck PM sections (time + usage based) hidden pending revamp; PM data & helpers retained */}
 
           <div className="pmHeader">
             <span className="pmHeaderTitle">
-              {"□  O n D e c k  U s a g e  B a s e d  P M s"}
-            </span>
-            <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
-              to the top {"▲"}
-            </a>
-          </div>
-          <div className="tableWrap">
-            <table className="grid pmGrid">
-              <thead>
-                <tr className="pmHead">
-                  <th style={{ width: 56 }}>Actions</th>
-                  <th style={{ width: 90 }}>Tool {"⇅"}</th>
-                  <th>PM Name {"⇅"}</th>
-                  <th style={{ width: 120 }}>PM Status {"⇅"}</th>
-                  <th style={{ width: 170 }} className="thHi">
-                    Count Until Overdue {"↓"}
-                  </th>
-                  <th style={{ width: 150 }}>Count Until Due</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...usagePMs]
-                  .sort((a, b) => b.count / b.limit - a.count / a.limit)
-                  .map((pm, i) => {
-                    const pctLimit = Math.round((pm.count / pm.limit) * 100);
-                    const pctDue = Math.round((pm.count / pm.due) * 100);
-                    const st = pm.count >= pm.limit ? "OVERDUE" : pm.count >= pm.due ? "DUE" : "OPPORTUNITY";
-                    return (
-                      <tr key={pm.id} className={i % 2 ? "rowAlt" : "row"}>
-                        <td className="gearCell">
-                          <span
-                            className="gear"
-                            onClick={() =>
-                              setGearMenu(gearMenu?.type === "u" && gearMenu.id === pm.id ? null : { type: "u", id: pm.id })
-                            }
-                          >
-                            {"⚙"}
-                          </span>
-                          {gearMenu?.type === "u" && gearMenu.id === pm.id && (
-                            <div className="gearMenu">
-                              <div onClick={() => resetUsagePM(pm)}>{"✓"} Complete + reset counter</div>
-                              <div onClick={() => createWOFromPM(pm.tool, pm.name)}>+ Create Work Order</div>
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <b>{pm.tool}</b>
-                        </td>
-                        <td className="pmName">{pm.name}</td>
-                        <td>
-                          <PMStatusBadge status={st} />
-                        </td>
-                        <td className="numCell hiCol">
-                          {pctLimit}% ({pm.count} / {pm.limit} {pm.unit})
-                        </td>
-                        <td className="numCell">
-                          {pctDue}% ({pm.count} / {pm.due} {pm.unit})
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="pmHeader">
-            <span className="pmHeaderTitle">
-              {"□  W I I N G S  P a r t s  -  H o m e  S t o c k  &  O r d e r s"}
+              {"□  P a r t  O r d e r s"}
             </span>
             <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               to the top {"▲"}
@@ -1437,18 +1282,6 @@ function App() {
             {" open part request(s) "}
             <button className="btnGrad" onClick={() => flash("Use 'Order Parts' inside a Work Order to add a request.")}>
               Order Parts
-            </button>
-            <button
-              className="btnGrad"
-              onClick={() =>
-                flash(
-                  parts.some((p) => p.expedite)
-                    ? "Expedited: " + parts.filter((p) => p.expedite).map((p) => p.part).join("; ")
-                    : "No expedited parts."
-                )
-              }
-            >
-              Track Expedites
             </button>
           </div>
           <div className="tableWrap">
@@ -1462,7 +1295,6 @@ function App() {
                   <th style={{ width: 110 }}>Source</th>
                   <th style={{ width: 100 }}>Status {"⇅"}</th>
                   <th style={{ width: 100 }}>ETA</th>
-                  <th style={{ width: 74 }}>Expedite</th>
                   <th style={{ width: 120 }}>Actions</th>
                 </tr>
               </thead>
@@ -1471,10 +1303,7 @@ function App() {
                   .sort((a, b) => PART_FLOW.indexOf(a.status) - PART_FLOW.indexOf(b.status))
                   .map((p, i) => (
                     <tr key={p.id} className={(i % 2 ? "rowAlt" : "row") + (p.status === "Installed" ? " partDone" : "")}>
-                      <td>
-                        {p.expedite && <span className="expFlag">EXPEDITE</span>}
-                        {p.part}
-                      </td>
+                      <td>{p.part}</td>
                       <td>
                         <b>{p.tool}</b>
                       </td>
@@ -1493,9 +1322,6 @@ function App() {
                         <span className={`partBadge pb${PART_FLOW.indexOf(p.status)}`}>{p.status}</span>
                       </td>
                       <td className="numCell">{p.eta ? fmtDT(p.eta) : "—"}</td>
-                      <td style={{ textAlign: "center" }}>
-                        <input type="checkbox" checked={p.expedite} onChange={() => toggleExpedite(p.id)} />
-                      </td>
                       <td>
                         {p.status !== "Installed" ? (
                           <button className="btnGrad btnSm" onClick={() => advancePart(p.id)}>
@@ -1762,7 +1588,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, flash }) {
 
       {showParts && (
         <div className="statusPicker">
-          <b>Order Parts {"→"} WIINGS:</b>
+          <b>Order Parts {"→"} Part Orders:</b>
           <input
             className="partInput"
             value={partReq.name}

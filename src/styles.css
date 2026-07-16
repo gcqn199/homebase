@@ -103,7 +103,6 @@ body { margin: 0; background: #cfd6dd; }
 .rank { display: inline-block; min-width: 14px; text-align: right; color: #555; }
 .woLink { font-weight: 600; }
 .entitySub { display: flex; align-items: center; gap: 10px; padding-left: 34px; margin-top: 1px; }
-.zone { color: #777; font-size: 9px; }
 .statusCell { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 .stIcon { font-size: 10px; }
 .stOpen { color: #1c7a2d; }
@@ -155,7 +154,6 @@ body { margin: 0; background: #cfd6dd; }
 .pb2 { background: #fdeec8; color: #8a5b00; }
 .pb3 { background: #ddefdd; color: #1c5c34; }
 .pb4 { background: #35424f; color: #fff; }
-.expFlag { background: #c0271a; color: #fff; font-size: 9px; font-weight: 700; padding: 0 4px; margin-right: 5px; }
 .partDone td { color: #999; }
 .btnSm { padding: 2px 8px; font-size: 10px; }
 
