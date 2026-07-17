@@ -1,5 +1,5 @@
 /* Homebase Passdown service worker — network-first app shell, offline fallback */
-const CACHE = "homebase-v9";
+const CACHE = "homebase-v10";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-180.png", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
