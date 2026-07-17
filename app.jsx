@@ -105,16 +105,22 @@ function migrateWO(w) {
   }
   if (out && out.deadline === undefined) out = { ...out, deadline: null };
   if (out && out.system === undefined) out = { ...out, system: null };
+  if (out && out.entity === undefined) out = { ...out, entity: "" };
   return out;
 }
 
 function migrateState(s) {
   if (!s || !Array.isArray(s.workOrders)) return s;
   const wos = s.workOrders.map(migrateWO);
-  return wos.some((w, i) => w !== s.workOrders[i]) ? { ...s, workOrders: wos } : s;
+  let out = wos.some((w, i) => w !== s.workOrders[i]) ? { ...s, workOrders: wos } : s;
+  /* Supplies rename: legacy part status "Installed" -> "Put Away" */
+  if (Array.isArray(out.parts) && out.parts.some((p) => p && p.status === "Installed")) {
+    out = { ...out, parts: out.parts.map((p) => (p && p.status === "Installed" ? { ...p, status: "Put Away" } : p)) };
+  }
+  return out;
 }
 
-const PART_FLOW = ["Requested", "Ordered", "Shipped", "Received", "Installed"];
+const PART_FLOW = ["Requested", "Ordered", "Shipped", "Received", "Put Away"];
 
 /* ---------- household systems ---------- */
 const SYSTEM_GROUPS = [
@@ -134,8 +140,10 @@ const SYSTEM_GROUPS = [
     items: [
       { code: "CLEAN", label: "Cleaning" },
       { code: "LAUNDRY", label: "Laundry systems" },
-      { code: "AUTO", label: "Cars/trucks" },
+      { code: "AUTO", label: "Mazda CX-5" },
       { code: "AUTO-MAINT", label: "Scheduled vehicle maintenance" },
+      { code: "BIKE", label: "Bicycles/ebikes" },
+      { code: "MEAL", label: "Meal prep" },
     ],
   },
   {
@@ -154,7 +162,8 @@ const SYSTEM_GROUPS = [
     items: [
       { code: "FINANCE", label: "Bills/finances" },
       { code: "ADMIN", label: "Household admin/paperwork" },
-      { code: "PET", label: "Pet care" },
+      { code: "PET", label: "Cats (Matcha, Java, Chai)" },
+      { code: "LANDLORD", label: "Reported to property management" },
     ],
   },
 ];
@@ -198,191 +207,112 @@ function seedData() {
   let partSeq = 100;
   const workOrders = [
     {
-      id: nwo(), entity: "WH01", level: "L8", status: "In Progress", priority: 1, system: "PLUMB",
-      flow: "Waiting Parts",
-      desc: "Water heater leaking at T&P relief valve",
-      comment: "Supply valve shut off. Replacement valve ordered (SupplyHouse). Household on cold-water protocol.",
-      checklist: "TSVWH01LeakResponseADHOC", checklistState: "In Prog",
-      updatedBy: "C. Kuehn", updated: t - 2 * H,
-      contacts: ["C. Kuehn", "S. Kuehn"],
-      rootCause: "Valve seat corrosion (unit age: 9 yrs)",
-      preventable: "Add annual T&P valve lift test to PM plan",
-      assigned: "On-Call Homeowner", created: t - 26 * H, createdBy: "C. Kuehn",
+      id: nwo(), entity: "Bathroom sink", level: "L8", status: "Open", priority: 2, system: "LANDLORD",
+      flow: "Open",
+      desc: "Report slow-draining bathroom sink to property management",
+      comment: "Draining slower each week — get maintenance request in before it clogs fully.",
+      checklist: "", checklistState: "",
+      updatedBy: "Cole", updated: t - 6 * H,
+      contacts: ["Cole"],
+      rootCause: "None Entered", preventable: "None Entered",
+      assigned: "On-Call Homeowner", created: t - 6 * H, createdBy: "Cole",
+      deadline: endOfMonth(),
+      gameplan: [
+        { text: "Submit maintenance request via portal", done: false, by: "" },
+        { text: "Note ticket # in comments", done: false, by: "" },
+      ],
+      log: [],
+    },
+    {
+      id: nwo(), entity: "Litterbox", level: "L8", status: "Open", priority: 3, system: "PET",
+      flow: "Open",
+      desc: "Full litter change — all 3 boxes, wash + refill",
+      comment: "Matcha, Java, and Chai have filed formal complaints.",
+      checklist: "", checklistState: "",
+      updatedBy: "Jessamine", updated: t - 12 * H,
+      contacts: ["Jessamine"],
+      rootCause: "N/A", preventable: "N/A",
+      assigned: "On-Call Homeowner", created: t - 30 * H, createdBy: "Jessamine",
       deadline: t + 48 * H,
-      gameplan: [
-        { text: "Shut off cold supply + gas valve", done: true, by: "C. Kuehn" },
-        { text: "Drain tank to below valve level", done: true, by: "C. Kuehn" },
-        { text: "Install new T&P valve on arrival", done: false, by: "" },
-        { text: "Leak check @ operating pressure, restore gas", done: false, by: "" },
-      ],
-      log: [
-        { by: "C. Kuehn", ts: t - 26 * H, text: "Found water pooling at drain pan during morning walkthrough." },
-        { by: "S. Kuehn", ts: t - 20 * H, text: "WorkOrderStatusOption changed to Waiting Parts. User Comment: 'Valve on order'" },
-      ],
-    },
-    {
-      id: nwo(), entity: "HVAC01", level: "L8", status: "Open", priority: 2, system: "HVAC",
-      flow: "Open",
-      desc: "AC not cooling upstairs zone (Zone 2)",
-      comment: "Run capacitor suspected — reading 3.1µF on a 5µF spec. Part in garage stock bin B3.",
-      checklist: "", checklistState: "",
-      updatedBy: "C. Kuehn", updated: t - 5 * H,
-      contacts: ["C. Kuehn"],
-      rootCause: "None Entered", preventable: "None Entered",
-      assigned: "C. Kuehn", created: t - 30 * H, createdBy: "C. Kuehn",
-      deadline: t + 96 * H,
-      gameplan: [
-        { text: "Kill power at disconnect, discharge cap", done: false, by: "" },
-        { text: "Swap run capacitor, verify µF", done: false, by: "" },
-      ],
-      log: [{ by: "C. Kuehn", ts: t - 30 * H, text: "Zone 2 blowing warm. Compressor hums, fan slow-start." }],
-    },
-    {
-      id: nwo(), entity: "GDO01", level: "L8", status: "Open", priority: 2, system: "APPL",
-      flow: "Open",
-      desc: "Garage door opener grinding on open cycle",
-      comment: "Bundle with rail lube PM if time permits.",
-      checklist: "", checklistState: "",
-      updatedBy: "S. Kuehn", updated: t - 12 * H,
-      contacts: ["S. Kuehn"],
-      rootCause: "None Entered", preventable: "None Entered",
-      assigned: "On-Call Homeowner", created: t - 40 * H, createdBy: "S. Kuehn",
-      deadline: null,
-      gameplan: [{ text: "Inspect drive gear + chain tension", done: false, by: "" }],
+      gameplan: [],
       log: [],
     },
     {
-      id: nwo(), entity: "LAWN01", level: "L8", status: "Open", priority: 3, system: "CLEAN",
+      id: nwo(), entity: "Kitchen", level: "L8", status: "Open", priority: 3, system: "MEAL",
       flow: "Open",
-      desc: "Weekly mow + edge + trim",
+      desc: "Sunday meal prep — workday lunches x5 each",
       comment: "Add a value",
       checklist: "", checklistState: "",
-      updatedBy: "C. Kuehn", updated: t - 20 * H,
-      contacts: ["C. Kuehn"],
+      updatedBy: "Jessamine", updated: t - 20 * H,
+      contacts: ["Jessamine"],
       rootCause: "N/A", preventable: "N/A",
-      assigned: "C. Kuehn", created: t - 60 * H, createdBy: "C. Kuehn",
-      deadline: t + 24 * H,
-      gameplan: [],
-      log: [],
-    },
-    {
-      id: nwo(), entity: "GUTR01", level: "L8", status: "Open", priority: 3, system: "CLEAN",
-      flow: "Open",
-      desc: "Clear downspout — rear NE corner overflowing",
-      comment: "Please follow ladder-safety RFC if working above 6 ft solo.",
-      checklist: "", checklistState: "",
-      updatedBy: "S. Kuehn", updated: t - 8 * H,
-      contacts: ["S. Kuehn"],
-      rootCause: "None Entered", preventable: "Install downspout strainer",
-      assigned: "On-Call Homeowner", created: t - 50 * H, createdBy: "S. Kuehn",
-      deadline: endOfMonth(),
-      gameplan: [],
-      log: [],
-    },
-    {
-      id: nwo(), entity: "DW01", level: "L8", status: "On Hold", priority: 3, system: "APPL",
-      flow: "On Hold",
-      desc: "Dishwasher lower rack wheel replacement",
-      comment: "Cosmetic / usability. On hold pending parts order consolidation.",
-      checklist: "", checklistState: "",
-      updatedBy: "C. Kuehn", updated: t - 70 * H,
-      contacts: ["C. Kuehn"],
-      rootCause: "Wear item", preventable: "N/A",
-      assigned: "C. Kuehn", created: t - 100 * H, createdBy: "C. Kuehn",
-      deadline: null,
-      gameplan: [],
-      log: [],
-    },
-    {
-      id: nwo(), entity: "HVAC01", level: "L8", status: "In Progress", priority: 4, system: "HVAC",
-      flow: "Data Due",
-      desc: "Monthly filter change (MERV 13) — both returns",
-      comment: "Bundle into consumable/weekly PMs as they come due, and as time permits.",
-      checklist: "TSVHVACFilterPM", checklistState: "Not Started",
-      updatedBy: "C. Kuehn", updated: t - 15 * H,
-      contacts: ["C. Kuehn"],
-      rootCause: "N/A", preventable: "N/A",
-      assigned: "C. Kuehn", created: t - 45 * H, createdBy: "C. Kuehn",
-      deadline: endOfMonth(),
-      gameplan: [],
-      log: [],
-    },
-    {
-      id: nwo(), entity: "SMK01", level: "L8", status: "Open", priority: 4, system: "ELEC",
-      flow: "Open",
-      desc: "Smoke / CO detector test + battery rotation (all 6 units)",
-      comment: "Hallway unit chirped once — replace that battery first.",
-      checklist: "", checklistState: "",
-      updatedBy: "S. Kuehn", updated: t - 30 * H,
-      contacts: ["S. Kuehn"],
-      rootCause: "N/A", preventable: "N/A",
-      assigned: "On-Call Homeowner", created: t - 80 * H, createdBy: "S. Kuehn",
-      deadline: null,
-      gameplan: [],
-      log: [],
-    },
-    {
-      id: nwo(), entity: "DECK01", level: "L5", status: "In Progress", priority: 5, system: "PROJ",
-      flow: "Waiting Wx",
-      desc: "Deck sand + re-stain project (SS + TTV)",
-      comment: "Needs 3 consecutive dry days. Keep this open, to be used upon weather window.",
-      checklist: "", checklistState: "",
-      updatedBy: "C. Kuehn", updated: t - 90 * H,
-      contacts: ["C. Kuehn", "S. Kuehn"],
-      rootCause: "N/A", preventable: "N/A",
-      assigned: "C. Kuehn", created: t - 200 * H, createdBy: "C. Kuehn",
-      deadline: endOfYear(),
+      assigned: "Jessamine", created: t - 40 * H, createdBy: "Jessamine",
+      deadline: t + 72 * H,
       gameplan: [
-        { text: "Pressure wash + 48h dry", done: false, by: "" },
-        { text: "Sand rails + treads", done: false, by: "" },
-        { text: "Stain coat 1 + 2", done: false, by: "" },
+        { text: "Plan menu + grocery list", done: false, by: "" },
+        { text: "Grocery run", done: false, by: "" },
+        { text: "Cook + portion into containers", done: false, by: "" },
       ],
       log: [],
     },
     {
-      id: nwo(), entity: "PAINT01", level: "L6", status: "Open", priority: 5, system: "PROJ",
+      id: nwo(), entity: "Ebike 1", level: "L8", status: "Open", priority: 4, system: "BIKE",
       flow: "Open",
-      desc: "Hallway scuff touch-up (SW Agreeable Gray)",
-      comment: "Add a value",
+      desc: "Brake pad check + chain clean/lube",
+      comment: "Front brakes feeling soft on the commute.",
       checklist: "", checklistState: "",
-      updatedBy: "S. Kuehn", updated: t - 110 * H,
-      contacts: ["S. Kuehn"],
-      rootCause: "N/A", preventable: "N/A",
-      assigned: "S. Kuehn", created: t - 150 * H, createdBy: "S. Kuehn",
+      updatedBy: "Cole", updated: t - 15 * H,
+      contacts: ["Cole"],
+      rootCause: "None Entered", preventable: "None Entered",
+      assigned: "Cole", created: t - 50 * H, createdBy: "Cole",
       deadline: null,
+      gameplan: [],
+      log: [],
+    },
+    {
+      id: nwo(), entity: "Apartment", level: "L5", status: "In Progress", priority: 5, system: "ORG",
+      flow: "In Progress",
+      desc: "Closet declutter — donate pile to drop-off",
+      comment: "Two bags staged by the door. Do not let them become furniture.",
+      checklist: "", checklistState: "",
+      updatedBy: "Cole", updated: t - 60 * H,
+      contacts: ["Cole", "Jessamine"],
+      rootCause: "N/A", preventable: "N/A",
+      assigned: "Cole", created: t - 120 * H, createdBy: "Cole",
+      deadline: endOfMonth(),
       gameplan: [],
       log: [],
     },
   ];
   const timePMs = [
-    { id: 1, tool: "LAWN01", name: "TSVLawnMowWeeklyPM", pre: "Yes", due: t - 7 * H, freqH: 168 },
-    { id: 2, tool: "HVAC01", name: "TSVHVACFilterMonthlyPM", pre: "Yes", due: t - 26 * H, freqH: 720 },
-    { id: 3, tool: "WH01", name: "TSVWaterHeaterFlushAnnualPM", pre: "", due: t - 614 * H, freqH: 8760 },
-    { id: 4, tool: "SMK01", name: "TSVSmokeDetectorTestPM", pre: "Yes", due: t + 59 * H, freqH: 4380 },
-    { id: 5, tool: "GUTR01", name: "TSVGutterCleanQuarterlyPM", pre: "", due: t + 98 * H, freqH: 2190 },
-    { id: 6, tool: "GDO01", name: "TSVGarageRailLubePM", pre: "", due: t + 170 * H, freqH: 4380 },
-    { id: 7, tool: "DRYER01", name: "TSVDryerVentCleanPM", pre: "Yes", due: t - 311 * H, freqH: 8760 },
+    { id: 1, tool: "Litterbox", name: "Full litter change (all 3 boxes)", pre: "Yes", due: t - 7 * H, freqH: 168 },
+    { id: 2, tool: "Kitchen", name: "Meal prep — workday lunches", pre: "Yes", due: t + 60 * H, freqH: 168 },
+    { id: 3, tool: "Cats", name: "Flea/tick meds — Matcha, Java, Chai", pre: "", due: t + 200 * H, freqH: 720 },
+    { id: 4, tool: "Cats", name: "Litter + cat food restock check", pre: "", due: t + 90 * H, freqH: 336 },
+    { id: 5, tool: "Ebikes", name: "Battery health check + charge to 80%", pre: "", due: t + 120 * H, freqH: 720 },
+    { id: 6, tool: "Dryer", name: "Lint trap + vent deep clean", pre: "", due: t - 100 * H, freqH: 720 },
+    { id: 7, tool: "Apartment", name: "Smoke detector test", pre: "Yes", due: t + 900 * H, freqH: 4380 },
+    { id: 8, tool: "Fridge", name: "Water filter replacement", pre: "", due: t + 1400 * H, freqH: 4380 },
   ];
   const usagePMs = [
-    { id: 1, tool: "CAR01", name: "TSVCarOilChangePM", count: 4712, limit: 5e3, due: 4500, unit: "mi" },
-    { id: 2, tool: "HVAC01", name: "TSVBlowerRuntimePM", count: 582, limit: 600, due: 540, unit: "hrs" },
-    { id: 3, tool: "MWR01", name: "TSVMowerBladeSharpenPM", count: 38.5, limit: 50, due: 45, unit: "hrs" },
-    { id: 4, tool: "FRG01", name: "TSVFridgeWaterFilterPM", count: 5.2, limit: 6, due: 5.5, unit: "mo" },
+    { id: 1, tool: "Mazda CX-5", name: "Oil change (since last)", count: 3850, limit: 5e3, due: 4500, unit: "mi" },
+    { id: 2, tool: "Mazda CX-5", name: "Tire rotation (since last)", count: 3850, limit: 7500, due: 7000, unit: "mi" },
+    { id: 3, tool: "Ebikes", name: "Chain lube interval", count: 140, limit: 200, due: 180, unit: "mi" },
   ];
   const parts = [
-    { id: ++partSeq, part: 'T&P relief valve 3/4" (Watts 100XL)', tool: "WH01", wo: 6012251, qty: 1, source: "SupplyHouse", status: "Shipped", eta: t + 46 * H },
-    { id: ++partSeq, part: "Run capacitor 5µF 370V", tool: "HVAC01", wo: 6012252, qty: 1, source: "Stock bin B3", status: "Received", eta: null },
-    { id: ++partSeq, part: "MERV 13 filter 20x25x1 (2-pk)", tool: "HVAC01", wo: null, qty: 2, source: "Amazon", status: "Ordered", eta: t + 96 * H },
-    { id: ++partSeq, part: "Dishwasher lower rack wheel kit", tool: "DW01", wo: 6012256, qty: 1, source: "RepairClinic", status: "Requested", eta: null },
-    { id: ++partSeq, part: "9V lithium batteries (6-pk)", tool: "SMK01", wo: null, qty: 1, source: "Costco", status: "Received", eta: null },
+    { id: ++partSeq, part: "Cat litter 40 lb (unscented clumping)", tool: "Litterbox", wo: 6012252, qty: 2, source: "Chewy", status: "Ordered", eta: t + 72 * H },
+    { id: ++partSeq, part: "Dry cat food 16 lb", tool: "Cats", wo: null, qty: 1, source: "Chewy", status: "Requested", eta: null },
+    { id: ++partSeq, part: "Ebike brake pads (front pair)", tool: "Ebike 1", wo: 6012254, qty: 1, source: "Amazon", status: "Shipped", eta: t + 48 * H },
+    { id: ++partSeq, part: "Meal prep containers (10-pk glass)", tool: "Kitchen", wo: null, qty: 1, source: "Costco", status: "Put Away", eta: null },
+    { id: ++partSeq, part: "Fridge water filter", tool: "Fridge", wo: null, qty: 1, source: "Amazon", status: "Requested", eta: null },
   ];
   return {
     workOrders, timePMs, usagePMs, parts,
-    dailyText: `• Water OFF to WH01 — do not restore until valve replaced
-• Trash + recycling out Thursday night
-• Zone 2 AC warm — fans running upstairs overnight
-• Check mail hold status before trip`,
-    dailyBy: "C. Kuehn",
+    dailyText: `• Feed cats AM/PM — Matcha gets the dental kibble
+• Scoop litterboxes nightly
+• Ebikes: charge to ~80%, off the charger overnight
+• Meal prep containers to fridge Sunday night`,
+    dailyBy: "Cole",
     dailyAt: t - 4 * H,
     woSeq, partSeq,
     lastModified: t,
@@ -551,7 +481,7 @@ function DeadlineCalendar({ workOrders, onOpen, onRefresh }) {
                     title={`WO #${w.id} — ${w.desc} (P${w.priority}, ${w.status}${w.system ? ", " + w.system : ""})`}
                     onClick={() => onOpen(w.id)}
                   >
-                    {w.entity}
+                    {w.entity || w.desc.slice(0, 14)}
                   </span>
                 ))}
               </div>
@@ -590,6 +520,8 @@ function App() {
   const [query, setQuery] = useState("");
   const [editDaily, setEditDaily] = useState(false);
   const [gearMenu, setGearMenu] = useState(null);
+  const [showPartOrder, setShowPartOrder] = useState(false);
+  const [partOrderReq, setPartOrderReq] = useState({ name: "", qty: 1, source: "", tool: "" });
   const [rowMenu, setRowMenu] = useState(null); // {type:"status"|"deadline", id}
   const [toast, setToast] = useState("");
   const [showSettings, setShowSettings] = useState(false);
@@ -673,7 +605,7 @@ function App() {
     if (q)
       list = list.filter(
         (w) =>
-          w.entity.toLowerCase().includes(q) ||
+          (w.entity || "").toLowerCase().includes(q) ||
           w.desc.toLowerCase().includes(q) ||
           String(w.id).includes(q) ||
           (w.system || "").toLowerCase().includes(q)
@@ -772,12 +704,12 @@ function App() {
     dlPick: { mode: "none", date: "" },
   });
   const createWO = () => {
-    if (!form.entity.trim() || !form.desc.trim()) return flash("Category and Description are required.");
+    if (!form.desc.trim()) return flash("Description is required.");
     mutate((s) => {
       const id = s.woSeq + 1;
       const wo = {
         id,
-        entity: form.entity.trim().toUpperCase(),
+        entity: form.entity.trim(),
         level: "L8",
         status: form.status,
         priority: Number(form.priority),
@@ -927,7 +859,7 @@ function App() {
         },
       ],
     }));
-    flash(`Part request logged for ${tool} (WO #${wo}).`);
+    flash(wo ? `Part request logged for ${tool} (WO #${wo}).` : `Part request logged${tool && tool !== "\u2014" ? ` for ${tool}` : ""} (no WO).`);
   };
 
   const dotColor = { local: "#8a99a8", syncing: "#e8b90c", synced: "#2fa14a", offline: "#c0271a" }[sync.s];
@@ -948,6 +880,7 @@ function App() {
           <span className={view.page === "passdown" ? "on" : ""} onClick={() => setView({ page: "passdown" })}>
             Main
           </span>
+          <span className="verChip" title="Homebase version">V1</span>
         </nav>
         <span className="chromeRight">
           <span className="syncChip" onClick={pull} title="Tap to sync now">
@@ -1081,11 +1014,11 @@ function App() {
               )}
               <div className="createGrid">
                 <label>
-                  Category
+                  Item (optional)
                   <input
                     id="entityInput"
                     value={form.entity}
-                    placeholder="e.g. HVAC01"
+                    placeholder="e.g. Litterbox, Mazda CX-5"
                     autoFocus
                     onChange={(e) => setForm({ ...form, entity: e.target.value })}
                     onKeyDown={(e) => e.key === "Enter" && createWO()}
@@ -1211,7 +1144,6 @@ function App() {
                                   onChange={(e) => setChecked((c) => ({ ...c, [w.id]: e.target.checked }))}
                                 />
                                 <span className="rank">{i + 1}</span>
-                                <b>{w.entity}</b>
                                 <a className="woLink" onClick={() => openDetail(w.id)}>
                                   {w.id}
                                 </a>
@@ -1361,7 +1293,7 @@ function App() {
           {/* ---- OnDeck PMs (time based) ---- */}
           <div className="pmHeader">
             <span className="pmHeaderTitle">
-              {"□  O n D e c k  P M s  -  T I M E  B A S E D"}
+              {"□  T i m e  B a s e d  P M s"}
             </span>
             <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               to the top {"▲"}
@@ -1378,7 +1310,7 @@ function App() {
               <thead>
                 <tr className="pmHead">
                   <th style={{ width: 56 }}>Actions</th>
-                  <th style={{ width: 90 }}>Tool {"⇅"}</th>
+                  <th style={{ width: 110 }}>Item {"⇅"}</th>
                   <th>PM Name {"⇅"}</th>
                   <th style={{ width: 120 }}>PM Status {"⇅"}</th>
                   <th style={{ width: 66 }}>Pre PM</th>
@@ -1435,7 +1367,7 @@ function App() {
           {/* ---- OnDeck usage based PMs ---- */}
           <div className="pmHeader">
             <span className="pmHeaderTitle">
-              {"□  O n D e c k  U s a g e  B a s e d  P M s"}
+              {"□  U s a g e  B a s e d  P M s"}
             </span>
             <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               to the top {"▲"}
@@ -1446,7 +1378,7 @@ function App() {
               <thead>
                 <tr className="pmHead">
                   <th style={{ width: 56 }}>Actions</th>
-                  <th style={{ width: 90 }}>Tool {"⇅"}</th>
+                  <th style={{ width: 110 }}>Item {"⇅"}</th>
                   <th>PM Name {"⇅"}</th>
                   <th style={{ width: 120 }}>PM Status {"⇅"}</th>
                   <th style={{ width: 170 }} className="thHi">Count Until Overdue {"↓"}</th>
@@ -1507,18 +1439,64 @@ function App() {
             </a>
           </div>
           <div className="pmSub">
-            {parts.filter((p) => p.status !== "Installed").length}
-            {" open part request(s) "}
-            <button className="btnGrad" onClick={() => flash("Use 'Order Parts' inside a Work Order to add a request.")}>
-              Order Parts
+            {parts.filter((p) => p.status !== "Put Away").length}
+            {" open supply request(s) "}
+            <button className="btnGrad" onClick={() => setShowPartOrder((v) => !v)}>
+              Order Supplies
             </button>
           </div>
+          {showPartOrder && (
+            <div className="statusPicker partOrderBox">
+              <b>Order Supply (no Work Order needed):</b>
+              <input
+                className="partInput"
+                value={partOrderReq.name}
+                placeholder="Part description"
+                onChange={(e) => setPartOrderReq({ ...partOrderReq, name: e.target.value })}
+              />
+              Qty
+              <input
+                className="partQty"
+                type="number"
+                min="1"
+                value={partOrderReq.qty}
+                onChange={(e) => setPartOrderReq({ ...partOrderReq, qty: e.target.value })}
+              />
+              <input
+                className="partSrc"
+                value={partOrderReq.source}
+                placeholder="Source (Amazon, Home Depot…)"
+                onChange={(e) => setPartOrderReq({ ...partOrderReq, source: e.target.value })}
+              />
+              <input
+                className="partSrc"
+                value={partOrderReq.tool}
+                placeholder="Item (optional)"
+                onChange={(e) => setPartOrderReq({ ...partOrderReq, tool: e.target.value })}
+              />
+              <button
+                className="btnGrad"
+                onClick={() => {
+                  if (!partOrderReq.name.trim()) return flash("Part description required.");
+                  addPart(null, partOrderReq.tool.trim() || "\u2014", {
+                    name: partOrderReq.name.trim(),
+                    qty: partOrderReq.qty,
+                    source: partOrderReq.source.trim(),
+                  });
+                  setPartOrderReq({ name: "", qty: 1, source: "", tool: "" });
+                  setShowPartOrder(false);
+                }}
+              >
+                Submit Request
+              </button>
+            </div>
+          )}
           <div className="tableWrap">
             <table className="grid pmGrid">
               <thead>
                 <tr className="pmHead">
                   <th>Part {"⇅"}</th>
-                  <th style={{ width: 80 }}>For Tool</th>
+                  <th style={{ width: 100 }}>For Item</th>
                   <th style={{ width: 80 }}>WO #</th>
                   <th style={{ width: 44 }}>Qty</th>
                   <th style={{ width: 110 }}>Source</th>
@@ -1531,7 +1509,7 @@ function App() {
                 {[...parts]
                   .sort((a, b) => PART_FLOW.indexOf(a.status) - PART_FLOW.indexOf(b.status))
                   .map((p, i) => (
-                    <tr key={p.id} className={(i % 2 ? "rowAlt" : "row") + (p.status === "Installed" ? " partDone" : "")}>
+                    <tr key={p.id} className={(i % 2 ? "rowAlt" : "row") + (p.status === "Put Away" ? " partDone" : "")}>
                       <td>{p.part}</td>
                       <td>
                         <b>{p.tool}</b>
@@ -1552,7 +1530,7 @@ function App() {
                       </td>
                       <td className="numCell">{p.eta ? fmtDT(p.eta) : "—"}</td>
                       <td>
-                        {p.status !== "Installed" ? (
+                        {p.status !== "Put Away" ? (
                           <button className="btnGrad btnSm" onClick={() => advancePart(p.id)}>
                             {"▶"} {PART_FLOW[PART_FLOW.indexOf(p.status) + 1]}
                           </button>
@@ -1597,7 +1575,7 @@ function App() {
       {view.page === "archive" && (
         <div className="page">
           <div className="crumbLine">
-            <a onClick={() => setView({ page: "passdown" })}>{"\u2190"} Passdown</a>
+            <a onClick={() => setView({ page: "passdown" })}>{"\u2190"} Main</a>
             {"  /  "}
             <b>WOPr - Archive</b>
           </div>
@@ -1641,7 +1619,6 @@ function App() {
                   <tr key={w.id} className={i % 2 ? "rowAlt" : "row"}>
                     <td className="entityCell">
                       <div className="entityTop">
-                        <b>{w.entity}</b>
                         <a className="woLink" onClick={() => setView({ page: "detail", id: w.id, back: "archive" })}>
                           {w.id}
                         </a>
@@ -1697,7 +1674,7 @@ function App() {
         <div className="page">
           <div className="muted">Work order not found (may have been removed on another device).</div>
           <button className="btnGrad" onClick={() => setView({ page: "passdown" })}>
-            {"←"} Back to Passdown
+            {"←"} Back to Main
           </button>
         </div>
       )}
@@ -1727,7 +1704,7 @@ function SettingsModal({ cfg, onClose, onSave, onReset }) {
           Display name (shows on your updates)
           <input
             value={form.userName}
-            placeholder="e.g. C. Kuehn"
+            placeholder="e.g. Cole"
             onChange={(e) => setForm({ ...form, userName: e.target.value })}
           />
         </label>
@@ -1808,8 +1785,9 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
       },
     },
     { label: "Add Comment", ic: "\u{1F5E8}", act: () => document.getElementById("cmtBox")?.focus() },
+    { label: "Contacts", ic: "\u{1F465}" },
     { label: "GamePlan", ic: "\u{1F4CB}" },
-    { label: "Order Parts", ic: "\u{1F6D2}", act: () => setShowParts((v) => !v) },
+    { label: "Order Supplies", ic: "\u{1F6D2}", act: () => setShowParts((v) => !v) },
   ];
 
   const addComment = () => {
@@ -1824,14 +1802,14 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
   return (
     <div className="page">
       <div className="crumbLine">
-        <a onClick={onBack}>{"←"} Passdown</a>
+        <a onClick={onBack}>{"←"} Main</a>
         {"  /  "}
         <b>
-          {wo.entity} - Homebase - Edit Work Order #{wo.id}
+          {wo.entity ? wo.entity + " - " : ""}D1H Homebase - Edit Work Order #{wo.id}
         </b>
       </div>
       <div className="detailTabs">
-        {["Entry Editor"].map((t) => (
+        {["Entry Editor", "FYIs", "Communication", "Reference"].map((t) => (
           <span key={t} className={tab === t ? "dtOn" : ""} onClick={() => setTab(t)}>
             {t}
           </span>
@@ -1848,7 +1826,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
 
       {showStatus && (
         <div className="statusPicker">
-          {"Change tool status: "}
+          {"Change status: "}
           <select value={pendStatus} onChange={(e) => setPendStatus(e.target.value)}>
             {Object.keys(STATUS_META).map((s) => (
               <option key={s}>{s}</option>
@@ -1906,7 +1884,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
 
       {showParts && (
         <div className="statusPicker">
-          <b>Order Parts {"→"} Part Orders:</b>
+          <b>Order Supplies:</b>
           <input
             className="partInput"
             value={partReq.name}
@@ -1945,7 +1923,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
         <div className="downtime">
           <div className="dtQ">
             <b>
-              {wo.entity} is down ({wo.status}).
+              {wo.entity || "This item"} is down ({wo.status}).
             </b>
             <br />
             Would you like to associate this Work Order to the current downtime?
@@ -1986,7 +1964,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
       <div className="edTitle">Entry Details for Work Order # {wo.id}</div>
       <div className="edBlock">
         <div className="edTool">
-          {"Tool Affected:  "}
+          {"Item:  "}
           <b>{wo.entity}</b>{" "}
           <span className={`stIcon ${(STATUS_META[wo.status] || STATUS_META.Open).cls}`}>
             {(STATUS_META[wo.status] || STATUS_META.Open).icon}
@@ -1997,6 +1975,14 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
             <tr>
               <td>Description:</td>
               <td>{wo.desc}</td>
+            </tr>
+            <tr>
+              <td>Root Cause:</td>
+              <td>{wo.rootCause}</td>
+            </tr>
+            <tr>
+              <td>Preventable Actions:</td>
+              <td>{wo.preventable}</td>
             </tr>
             <tr>
               <td>Entry Status:</td>
@@ -2036,6 +2022,10 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
               </td>
             </tr>
             <tr>
+              <td>Assigned to:</td>
+              <td>{wo.assigned}</td>
+            </tr>
+            <tr>
               <td>Created on:</td>
               <td>
                 {fmtDT(wo.created)} by {wo.createdBy}
@@ -2049,6 +2039,16 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="edTitle">Additional Contacts</div>
+      <div className="edBlock">
+        {wo.contacts.map((c) => (
+          <div key={c} className="ctRow">
+            {"• "}
+            <a>{c}</a>
+          </div>
+        ))}
       </div>
 
       <div className="edTitle">Gameplan</div>
