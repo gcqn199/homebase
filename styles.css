@@ -386,3 +386,33 @@ input.ieInput[type="date"] { width: auto; min-width: 0; }
   border: 1px solid #c9a227;
 }
 .partOrderBox { margin: 4px 0 8px; }
+
+/* ---- household lists (Shopping / Today's / Quick Capture) ---- */
+.listGrid { min-width: 0; }               /* full-width tables fit the phone — no sideways scroll */
+.listWrap { overflow-x: visible; }
+.listGrid td { padding: 7px 6px; }        /* roomier tap targets than the dense CMMS grids */
+.listSub { gap: 6px; }
+.listAddInput { font-size: 16px; flex: 1 1 150px; min-width: 130px; padding: 3px 6px; border: 1px solid #8a99a8; }
+.liTick { text-align: center; cursor: pointer; font-size: 13px; }
+.liOpenIc { color: #8a99a8; }
+.liDoneIc { color: #1c7a2d; }
+.liText { cursor: pointer; font-size: 13px; }
+.liStrike { text-decoration: line-through; color: #8a99a8; }   /* Shopping: crossed out like her Notes habit */
+.liDim { color: #6f7b87; }                                     /* Today's/Capture: checkmark style, text readable */
+.liDoneRow { background: #f4f7f4; }
+.liDoneRow:hover { background: #eef3ee; }
+.liDel { text-align: center; }
+.liDel a { color: #a33; text-decoration: none; font-weight: 700; padding: 2px 6px; }
+.mornBanner {
+  background: #fff8e0; border: 1px solid #d8c26a; border-bottom: none;
+  padding: 5px 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px;
+}
+.listNav { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 6px; }
+.viewBtns { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; }
+.viewBtns b { font-size: 11px; }
+.gpDel { color: #a33; text-decoration: none; font-weight: 700; padding: 0 4px; }
+.gpAdd { margin: 6px 0 2px; }
+@media (max-width: 720px) {
+  .listGrid td { padding: 10px 8px; }
+  .listNav .btnGrad { padding: 6px 10px; }
+}

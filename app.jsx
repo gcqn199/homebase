@@ -108,6 +108,12 @@ function migrateWO(w) {
   if (out && out.deadline === undefined) out = { ...out, deadline: null };
   if (out && out.system === undefined) out = { ...out, system: null };
   if (out && out.entity === undefined) out = { ...out, entity: "" };
+  if (out) {
+    /* priority must be a number 1-5 or the WO silently vanishes from the priority bands */
+    const pn = Number(out.priority);
+    if (!(pn >= 1 && pn <= 5)) out = { ...out, priority: 3 };
+    else if (pn !== out.priority) out = { ...out, priority: pn };
+  }
   if (out && (out.assigned === undefined || out.assigned === "On-Call Homeowner")) out = { ...out, assigned: "Unassigned" };
   return out;
 }
@@ -119,6 +125,17 @@ function migrateState(s) {
   /* Supplies rename: legacy part status "Installed" -> "Put Away" */
   if (Array.isArray(out.parts) && out.parts.some((p) => p && p.status === "Installed")) {
     out = { ...out, parts: out.parts.map((p) => (p && p.status === "Installed" ? { ...p, status: "Put Away" } : p)) };
+  }
+  /* Household lists (Shopping / Today's / Quick Capture) — backfill empty defaults on older docs */
+  if (!Array.isArray(out.shopping) || !Array.isArray(out.todays) || !Array.isArray(out.capture) || typeof out.listSeq !== "number") {
+    out = {
+      ...out,
+      shopping: Array.isArray(out.shopping) ? out.shopping : [],
+      todays: Array.isArray(out.todays) ? out.todays : [],
+      capture: Array.isArray(out.capture) ? out.capture : [],
+      todaysDate: out.todaysDate === undefined ? null : out.todaysDate,
+      listSeq: typeof out.listSeq === "number" ? out.listSeq : 0,
+    };
   }
   return out;
 }
@@ -309,8 +326,18 @@ function seedData() {
     { id: ++partSeq, part: "Meal prep containers (10-pk glass)", tool: "Kitchen", wo: null, qty: 1, source: "Costco", status: "Put Away", eta: null },
     { id: ++partSeq, part: "Fridge water filter", tool: "Fridge", wo: null, qty: 1, source: "Amazon", status: "Requested", eta: null },
   ];
+  const shopping = [
+    { id: 1, text: "Cat litter (Winco)", done: false, by: "Jessamine", ts: t - 6 * H },
+    { id: 2, text: "Coffee beans", done: true, by: "Cole", ts: t - 30 * H, doneBy: "Cole" },
+  ];
+  const capture = [{ id: 3, text: "Check Atmos flight credit", done: false, by: "Cole", ts: t - 8 * H }];
   return {
     workOrders, timePMs, usagePMs, parts,
+    shopping,
+    todays: [],
+    todaysDate: null,
+    capture,
+    listSeq: 3,
     dailyText: `• Feed cats AM/PM — Matcha gets the dental kibble
 • Scoop litterboxes nightly
 • Ebikes: charge to ~80%, off the charger overnight
@@ -544,6 +571,89 @@ function DeadlineCalendar({ workOrders, onOpen, onRefresh }) {
           ))}
           <span className="calLegNote">Tap a chip to open the WO. Set deadlines in the WOPr DEADLINE column.</span>
         </div>
+      </div>
+    </>
+  );
+}
+
+/* ---------- household list section (Shopping / Today's / Quick Capture) ----------
+   Same table/ribbon aesthetic as the CMMS sections. variant "strike" = crossed-out done
+   items (Shopping); variant "check" = checkmark, text stays readable (Today's / Capture).
+   Done items stay visible until cleared. The plain text input gets iOS keyboard
+   dictation for free — no custom speech feature needed. */
+function HouseListSection({ anchorId, title, items, variant, placeholder, emptyText, onAdd, onToggle, onDelete, actions, banner, extraCol, rowExtra }) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const t = draft.trim();
+    if (!t) return;
+    onAdd(t);
+    setDraft("");
+  };
+  const open = items.filter((i) => !i.done).length;
+  return (
+    <>
+      <div className="pmHeader" id={anchorId}>
+        <span className="pmHeaderTitle">{title}</span>
+        <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+          to the top {"▲"}
+        </a>
+      </div>
+      <div className="pmSub listSub">
+        {open}
+        {" open item(s) "}
+        <input
+          className="listAddInput"
+          value={draft}
+          placeholder={placeholder}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+        />
+        <button className="btnGrad" onClick={add}>
+          Add
+        </button>
+        {actions}
+      </div>
+      {banner}
+      <div className="tableWrap listWrap">
+        <table className="grid listGrid">
+          <thead>
+            <tr className="pmHead">
+              <th style={{ width: 34 }}>{"✓"}</th>
+              <th>ITEM</th>
+              {extraCol && <th style={{ width: 40 }} />}
+              <th style={{ width: 36 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 && (
+              <tr className="row">
+                <td colSpan={extraCol ? 4 : 3} className="muted">
+                  {emptyText}
+                </td>
+              </tr>
+            )}
+            {items.map((it, i) => (
+              <tr key={it.id} className={(i % 2 ? "rowAlt" : "row") + (it.done ? " liDoneRow" : "")}>
+                <td className="liTick" onClick={() => onToggle(it.id)}>
+                  {it.done ? <span className="liDoneIc">{"✔"}</span> : <span className="liOpenIc">{"○"}</span>}
+                </td>
+                <td
+                  className={"liText" + (it.done ? (variant === "strike" ? " liStrike" : " liDim") : "")}
+                  onClick={() => onToggle(it.id)}
+                  title={`Added by ${it.by || "?"}${it.done && it.doneBy ? ` — checked by ${it.doneBy}` : ""}`}
+                >
+                  {it.text}
+                </td>
+                {extraCol && <td className="gearCell">{rowExtra ? rowExtra(it) : null}</td>}
+                <td className="liDel">
+                  <a title="Remove item" onClick={() => onDelete(it.id)}>
+                    {"✕"}
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </>
   );
@@ -1006,6 +1116,97 @@ function App() {
     flash(wo ? `Part request logged for ${tool} (WO #${wo}).` : `Part request logged${tool && tool !== "\u2014" ? ` for ${tool}` : ""} (no WO).`);
   };
 
+  /* ---- household lists (Shopping / Today's / Quick Capture) ---- */
+  const shopping = state.shopping || [];
+  const todays = state.todays || [];
+  const capture = state.capture || [];
+
+  const addListItem = (key, text) => {
+    const t = text.trim();
+    if (!t) return;
+    mutate((s) => {
+      const id = (s.listSeq || 0) + 1;
+      const item = { id, text: t, done: false, by: me, ts: Date.now() };
+      const patch = { listSeq: id, [key]: [...(s[key] || []), item] };
+      if (key === "todays") patch.todaysDate = tsToDateInput(Date.now());
+      return { ...s, ...patch };
+    });
+  };
+  const toggleListItem = (key, id) =>
+    mutate((s) => ({
+      ...s,
+      [key]: (s[key] || []).map((i) => (i.id === id ? { ...i, done: !i.done, doneBy: i.done ? "" : me } : i)),
+    }));
+  const deleteListItem = (key, id) => mutate((s) => ({ ...s, [key]: (s[key] || []).filter((i) => i.id !== id) }));
+  const clearCheckedList = (key) => {
+    mutate((s) => ({ ...s, [key]: (s[key] || []).filter((i) => !i.done) }));
+    flash("Checked items cleared.");
+  };
+
+  /* "Text List" — unchecked shopping items via the iOS share sheet (Messages etc.);
+     clipboard fallback where Web Share isn't available. */
+  const shareShopping = async () => {
+    const lines = shopping.filter((i) => !i.done).map((i) => "• " + i.text).join("\n");
+    if (!lines) return flash("Nothing unchecked to send.");
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: lines });
+      } catch {}
+    } else if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(lines);
+        flash("List copied — paste into Messages.");
+      } catch {
+        flash("Couldn't copy on this device.");
+      }
+    } else flash("Sharing not supported on this device.");
+  };
+
+  /* Today's List morning prompt: if the list has items but wasn't touched today, ask. */
+  const todayStr = tsToDateInput(Date.now());
+  const todaysStale = todays.length > 0 && state.todaysDate !== todayStr;
+  const keepTodays = () => {
+    mutate((s) => ({ ...s, todaysDate: todayStr }));
+    flash("Keeping the list going.");
+  };
+  const freshTodays = () => {
+    mutate((s) => ({ ...s, todays: [], todaysDate: todayStr }));
+    flash("Today's List cleared — fresh start.");
+  };
+
+  /* Quick Capture → full Work Order (Full view gear action). Removes the capture item. */
+  const promoteCapture = (it) => {
+    mutate((s) => {
+      const id = s.woSeq + 1;
+      const wo = {
+        id, entity: "", level: "L8", status: "Open", priority: 3, flow: "Open",
+        desc: it.text,
+        comment: "Add a value",
+        checklist: "", checklistState: "",
+        updatedBy: me, updated: Date.now(), contacts: [me],
+        rootCause: "None Entered", preventable: "None Entered",
+        assigned: "Unassigned",
+        created: Date.now(), createdBy: me,
+        deadline: null, system: null,
+        gameplan: [],
+        log: [{ by: me, ts: Date.now(), text: "Promoted from Quick Capture" }],
+      };
+      flash(`Work Order #${id} created from Quick Capture.`);
+      return { ...s, woSeq: id, workOrders: [wo, ...s.workOrders], capture: (s.capture || []).filter((c) => c.id !== it.id) };
+    });
+    setGearMenu(null);
+  };
+
+  /* View mode — per-device (homebase.cfg.v1), independent of the Owner toggle.
+     Simple = lists + Daily Checklist only (Jessamine's default view); Full = everything. */
+  const simple = (cfg.viewMode || "full") === "simple";
+  const setViewMode = (m) => {
+    const c = { ...cfg, viewMode: m };
+    setCfg(c);
+    saveCfg(c);
+  };
+  const scrollToSect = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+
   const dotColor = { local: "#8a99a8", syncing: "#e8b90c", synced: "#2fa14a", offline: "#c0271a" }[sync.s];
   const syncLabel =
     sync.s === "local"
@@ -1080,9 +1281,38 @@ function App() {
                 {n}
               </button>
             ))}
+            <span className="viewBtns">
+              <b>View:</b>
+              {["full", "simple"].map((m) => (
+                <button
+                  key={m}
+                  className={"ownBtn" + ((cfg.viewMode || "full") === m ? " ownOn" : "")}
+                  onClick={() => setViewMode(m)}
+                  title={m === "simple" ? "Lists + Daily Checklist only" : "Everything"}
+                >
+                  {m === "full" ? "Full" : "Simple"}
+                </button>
+              ))}
+            </span>
             <span className="ownHint">updates, comments & closures log as: {me}</span>
           </div>
 
+          {!simple && (
+            <div className="listNav">
+              <button className="btnGrad" onClick={() => scrollToSect("sectShop")}>
+                {"\u{1F6D2}"} Shopping{shopping.filter((i) => !i.done).length ? ` (${shopping.filter((i) => !i.done).length})` : ""}
+              </button>
+              <button className="btnGrad" onClick={() => scrollToSect("sectToday")}>
+                {"\u{1F4CB}"} Today{todays.filter((i) => !i.done).length ? ` (${todays.filter((i) => !i.done).length})` : ""}
+              </button>
+              <button className="btnGrad" onClick={() => scrollToSect("sectCapture")}>
+                {"\u26A1"} Capture{capture.filter((i) => !i.done).length ? ` (${capture.filter((i) => !i.done).length})` : ""}
+              </button>
+            </div>
+          )}
+
+          {!simple && (
+            <>
           <DeadlineCalendar
             workOrders={workOrders}
             onOpen={openDetail}
@@ -1901,6 +2131,97 @@ function App() {
               </tbody>
             </table>
           </div>
+            </>
+          )}
+
+          <HouseListSection
+            anchorId="sectShop"
+            title={"□  S h o p p i n g  L i s t"}
+            items={shopping}
+            variant="strike"
+            placeholder="Add item… (tap the mic on your keyboard to dictate)"
+            emptyText="Shopping list is empty. Add items above — they stay until cleared."
+            onAdd={(t) => addListItem("shopping", t)}
+            onToggle={(id) => toggleListItem("shopping", id)}
+            onDelete={(id) => deleteListItem("shopping", id)}
+            actions={
+              <>
+                <button className="btnGrad" onClick={shareShopping} title="Send unchecked items via Messages">
+                  Text List
+                </button>
+                <button className="btnGrad" onClick={() => clearCheckedList("shopping")}>
+                  Clear Checked
+                </button>
+              </>
+            }
+          />
+
+          <HouseListSection
+            anchorId="sectToday"
+            title={"□  T o d a y ' s  L i s t"}
+            items={todays}
+            variant="check"
+            placeholder="Add a stop or errand for today…"
+            emptyText="Nothing planned yet today. Add stops, errands, or activities."
+            onAdd={(t) => addListItem("todays", t)}
+            onToggle={(id) => toggleListItem("todays", id)}
+            onDelete={(id) => deleteListItem("todays", id)}
+            actions={
+              <button className="btnGrad" onClick={() => clearCheckedList("todays")}>
+                Clear Checked
+              </button>
+            }
+            banner={
+              todaysStale ? (
+                <div className="mornBanner">
+                  <b>New day</b> {"—"} this list is from {state.todaysDate || "earlier"}. Keep it going or start fresh?
+                  <button className="btnGrad" onClick={keepTodays}>
+                    Keep list
+                  </button>
+                  <button className="btnGrad" onClick={freshTodays}>
+                    Start fresh
+                  </button>
+                </div>
+              ) : null
+            }
+          />
+
+          <HouseListSection
+            anchorId="sectCapture"
+            title={"□  Q u i c k  C a p t u r e"}
+            items={capture}
+            variant="check"
+            placeholder="Type it before you forget…"
+            emptyText="Nothing captured. Jot one-liners here — no category needed."
+            onAdd={(t) => addListItem("capture", t)}
+            onToggle={(id) => toggleListItem("capture", id)}
+            onDelete={(id) => deleteListItem("capture", id)}
+            actions={
+              <button className="btnGrad" onClick={() => clearCheckedList("capture")}>
+                Clear Checked
+              </button>
+            }
+            extraCol={!simple}
+            rowExtra={(it) => (
+              <>
+                <span
+                  className="gear"
+                  title="Actions"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGearMenu(gearMenu?.type === "cap" && gearMenu.id === it.id ? null : { type: "cap", id: it.id });
+                  }}
+                >
+                  {"⚙"}
+                </span>
+                {gearMenu?.type === "cap" && gearMenu.id === it.id && (
+                  <div className="gearMenu">
+                    <div onClick={() => promoteCapture(it)}>Promote to Work Order</div>
+                  </div>
+                )}
+              </>
+            )}
+          />
 
           <div className="pmHeader">
             <span className="pmHeaderTitle">{"□  D a i l y  C h e c k l i s t"}</span>
@@ -2144,7 +2465,14 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
     },
     { label: "Add Comment", ic: "\u{1F5E8}", act: () => document.getElementById("cmtBox")?.focus() },
     { label: "Contacts", ic: "\u{1F465}" },
-    { label: "GamePlan", ic: "\u{1F4CB}" },
+    {
+      label: "GamePlan",
+      ic: "\u{1F4CB}",
+      act: () => {
+        document.getElementById("gpSection")?.scrollIntoView({ behavior: "smooth" });
+        setTimeout(() => document.getElementById("gpBox")?.focus({ preventScroll: true }), 350);
+      },
+    },
     { label: "Order Supplies", ic: "\u{1F6D2}", act: () => setShowParts((v) => !v) },
   ];
 
@@ -2156,6 +2484,15 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
     const gp = wo.gameplan.map((g, i) => (i === idx ? { ...g, done: !g.done, by: g.done ? "" : me } : g));
     onUpdate({ gameplan: gp });
   };
+
+  const [gpNew, setGpNew] = useState("");
+  const addGameplan = () => {
+    const t = gpNew.trim();
+    if (!t) return;
+    onUpdate({ gameplan: [...(wo.gameplan || []), { text: t, done: false, by: "" }] });
+    setGpNew("");
+  };
+  const removeGameplan = (idx) => onUpdate({ gameplan: wo.gameplan.filter((_, i) => i !== idx) });
 
   return (
     <div className="page">
@@ -2388,7 +2725,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
                   onChange={(e) => {
                     const next = e.target.value;
                     if (next === (wo.assigned || "Unassigned")) return;
-                    updateWO(wo.id, {
+                    onUpdate({
                       assigned: next,
                       log: [...(wo.log || []), { by: me, ts: Date.now(), text: `Assigned to ${next}` }],
                     });
@@ -2427,7 +2764,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
         ))}
       </div>
 
-      <div className="edTitle">Gameplan</div>
+      <div className="edTitle" id="gpSection">Gameplan</div>
       <div className="edBlock">
         <div className="gpHead">Active Items</div>
         {wo.gameplan.filter((g) => !g.done).length === 0 && <div className="muted">No active gameplan items</div>}
@@ -2440,9 +2777,25 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
               <input type="checkbox" checked={false} onChange={() => toggleGameplan(i)} />
               {" "}
               {g.text}
+              {" "}
+              <a className="gpDel" title="Remove step" onClick={() => removeGameplan(i)}>
+                {"✕"}
+              </a>
             </div>
           )
         )}
+        <div className="cmtAdd gpAdd">
+          <input
+            id="gpBox"
+            value={gpNew}
+            placeholder="Add gameplan step…"
+            onChange={(e) => setGpNew(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addGameplan()}
+          />
+          <button className="btnGrad" onClick={addGameplan}>
+            Add Step
+          </button>
+        </div>
         <div className="gpHead" style={{ marginTop: 8 }}>
           Completed Items
         </div>
@@ -2458,6 +2811,10 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
               <s>{g.text}</s>
               {" "}
               <span className="gpBy">(by {g.by})</span>
+              {" "}
+              <a className="gpDel" title="Remove step" onClick={() => removeGameplan(i)}>
+                {"✕"}
+              </a>
             </div>
           ) : null
         )}
