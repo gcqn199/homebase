@@ -59,6 +59,15 @@ body { margin: 0; background: #cfd6dd; }
 .bulkBar { background: #fff8e0; border: 1px solid #d8c26a; padding: 3px 8px; display: flex; align-items: center; gap: 6px; }
 
 .createForm { background: #f4f7fa; border: 1px solid #9fb0c0; padding: 8px; margin-bottom: 8px; }
+.quickAdd { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; }
+.qaLabel { font-weight: 700; font-size: 11px; color: #35506e; margin-right: 2px; }
+.qaBtn {
+  font-size: 11px; cursor: pointer; font-family: inherit;
+  background: linear-gradient(#eef3f8, #d7e2ee);
+  color: #24405e; border: 1px solid #8fa4bb; border-radius: 3px; padding: 2px 8px;
+}
+.qaBtn:hover { background: linear-gradient(#fff, #e6eef7); }
+.dlDate { margin-top: 3px; }
 .createGrid { display: flex; gap: 12px; flex-wrap: wrap; margin: 6px 0 8px; }
 .createGrid label { display: flex; flex-direction: column; gap: 2px; font-weight: 600; }
 .createGrid label.wide { flex: 1; min-width: 260px; }

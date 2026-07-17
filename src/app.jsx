@@ -50,6 +50,13 @@ function endOfYear() {
   return new Date(n.getFullYear(), 11, 31, 23, 59, 59, 999).getTime();
 }
 
+function relDays(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}
+
 function dateInputToTs(v) {
   // "YYYY-MM-DD" -> local end-of-day timestamp
   const [y, m, d] = v.split("-").map(Number);
@@ -449,14 +456,18 @@ function DeadlineSelect({ value, onChange }) {
     <>
       <select value={value.mode} onChange={(e) => onChange({ ...value, mode: e.target.value })}>
         <option value="none">No deadline</option>
-        <option value="date">Pick date…</option>
+        <option value="tom">Tomorrow ({fmtDeadline(relDays(1))})</option>
+        <option value="wk">Next week ({fmtDeadline(relDays(7))})</option>
         <option value="eom">End of month ({fmtDeadline(endOfMonth())})</option>
         <option value="eoy">End of year ({fmtDeadline(endOfYear())})</option>
+        <option value="date">Pick date…</option>
       </select>
       {value.mode === "date" && (
         <input
+          className="dlDate"
           type="date"
           value={value.date}
+          autoFocus
           onChange={(e) => onChange({ ...value, date: e.target.value })}
         />
       )}
@@ -465,6 +476,8 @@ function DeadlineSelect({ value, onChange }) {
 }
 
 function deadlineFromPick(pick) {
+  if (pick.mode === "tom") return relDays(1);
+  if (pick.mode === "wk") return relDays(7);
   if (pick.mode === "eom") return endOfMonth();
   if (pick.mode === "eoy") return endOfYear();
   if (pick.mode === "date" && pick.date) return dateInputToTs(pick.date);
@@ -793,6 +806,50 @@ function App() {
     setShowCreate(false);
   };
 
+  /* Duplicate a work order — fast path for recurring chores (last week's laundry, etc.).
+     Copies category/priority/system/deadline/desc; resets status + history to a fresh Open entry. */
+  const duplicateWO = (src) => {
+    mutate((s) => {
+      const id = s.woSeq + 1;
+      const wo = {
+        ...src,
+        id,
+        status: "Open",
+        flow: "Open",
+        comment: "Add a value",
+        checklist: "",
+        checklistState: "",
+        updatedBy: me,
+        updated: Date.now(),
+        contacts: [me],
+        created: Date.now(),
+        createdBy: me,
+        gameplan: [],
+        log: [],
+      };
+      flash(`Work Order #${id} created (copy of #${src.id}).`);
+      return { ...s, woSeq: id, workOrders: [wo, ...s.workOrders] };
+    });
+  };
+
+  /* Quick Add: distinct categories already in use, most-used first — one tap to template a new WO. */
+  const quickCats = useMemo(() => {
+    const seen = new Map();
+    for (const w of workOrders) {
+      if (!w.entity) continue;
+      if (!seen.has(w.entity))
+        seen.set(w.entity, { entity: w.entity, priority: w.priority, system: w.system || "", n: 0 });
+      seen.get(w.entity).n++;
+    }
+    return [...seen.values()].sort((a, b) => b.n - a.n).slice(0, 8);
+  }, [workOrders]);
+
+  const quickFill = (c) => {
+    setShowCreate(true);
+    setForm({ entity: c.entity, desc: "", priority: c.priority, status: "Open", system: c.system, dlPick: { mode: "none", date: "" } });
+    setTimeout(() => document.getElementById("descInput")?.focus(), 0);
+  };
+
   const applyBulk = () => {
     const ids = Object.keys(checked).filter((k) => checked[k]).map(Number);
     if (!ids.length) return flash("No workorders selected.");
@@ -1007,13 +1064,31 @@ function App() {
           {showCreate && (
             <div className="createForm">
               <b>New Work Order</b>
+              {quickCats.length > 0 && (
+                <div className="quickAdd">
+                  <span className="qaLabel">Quick add:</span>
+                  {quickCats.map((c) => (
+                    <button
+                      key={c.entity}
+                      className="qaBtn"
+                      title={`P${c.priority}${c.system ? " · " + c.system : ""}`}
+                      onClick={() => quickFill(c)}
+                    >
+                      {c.entity}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="createGrid">
                 <label>
                   Category
                   <input
+                    id="entityInput"
                     value={form.entity}
                     placeholder="e.g. HVAC01"
+                    autoFocus
                     onChange={(e) => setForm({ ...form, entity: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && createWO()}
                   />
                 </label>
                 <label>
@@ -1051,9 +1126,11 @@ function App() {
                 <label className="wide">
                   Description
                   <input
+                    id="descInput"
                     value={form.desc}
                     placeholder="What needs doing?"
                     onChange={(e) => setForm({ ...form, desc: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && createWO()}
                   />
                 </label>
               </div>
@@ -1234,6 +1311,12 @@ function App() {
                               {rowMenu?.type === "deadline" && rowMenu.id === w.id && (
                                 <div className="gearMenu dlMenu">
                                   <div onClick={() => setDeadlineFor(w, null)}>No deadline</div>
+                                  <div onClick={() => setDeadlineFor(w, relDays(1))}>
+                                    Tomorrow ({fmtDeadline(relDays(1))})
+                                  </div>
+                                  <div onClick={() => setDeadlineFor(w, relDays(7))}>
+                                    Next week ({fmtDeadline(relDays(7))})
+                                  </div>
                                   <div onClick={() => setDeadlineFor(w, endOfMonth())}>
                                     End of month ({fmtDeadline(endOfMonth())})
                                   </div>
@@ -1465,6 +1548,10 @@ function App() {
           onBack={() => setView({ page: view.back === "archive" ? "archive" : "passdown" })}
           onUpdate={(patch) => updateWO(detailWO.id, patch)}
           onAddPart={(req) => addPart(detailWO.id, detailWO.entity, req)}
+          onDuplicate={() => {
+            duplicateWO(detailWO);
+            setView({ page: "passdown" });
+          }}
           flash={flash}
         />
       )}
@@ -1552,7 +1639,7 @@ function SettingsModal({ cfg, onClose, onSave, onReset }) {
 }
 
 /* ---------- work order detail ---------- */
-function DetailPage({ wo, me, onBack, onUpdate, onAddPart, flash }) {
+function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash }) {
   const [tab, setTab] = useState("Entry Editor");
   const [dtChoice, setDtChoice] = useState("");
   const [comment, setComment] = useState("");
@@ -1569,6 +1656,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, flash }) {
 
   const ribbon = [
     { label: "Edit Details", ic: "✎" },
+    { label: "Duplicate", ic: "⧉", act: () => onDuplicate && onDuplicate() },
     { label: "Change Status", ic: "⇄", act: () => setShowStatus((v) => !v) },
     { label: "Set Deadline", ic: "\u{1F4C5}", act: () => setShowDeadline((v) => !v) },
     { label: "Set System", ic: "\u{1F3E0}", act: () => setShowSystem((v) => !v) },
