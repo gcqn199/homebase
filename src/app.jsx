@@ -1358,7 +1358,145 @@ function App() {
             </table>
           </div>
 
-          {/* OnDeck PM sections (time + usage based) hidden pending revamp; PM data & helpers retained */}
+          {/* ---- OnDeck PMs (time based) ---- */}
+          <div className="pmHeader">
+            <span className="pmHeaderTitle">
+              {"□  O n D e c k  P M s  -  T I M E  B A S E D"}
+            </span>
+            <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+              to the top {"▲"}
+            </a>
+          </div>
+          <div className="pmSub">
+            {"Schedules as of " + fmtDT(Date.now()) + " "}
+            <button className="btnGrad" onClick={() => flash("PM schedules refreshed.")}>
+              Refresh
+            </button>
+          </div>
+          <div className="tableWrap">
+            <table className="grid pmGrid">
+              <thead>
+                <tr className="pmHead">
+                  <th style={{ width: 56 }}>Actions</th>
+                  <th style={{ width: 90 }}>Tool {"⇅"}</th>
+                  <th>PM Name {"⇅"}</th>
+                  <th style={{ width: 120 }}>PM Status {"⇅"}</th>
+                  <th style={{ width: 66 }}>Pre PM</th>
+                  <th style={{ width: 120 }} className="thHi">Hours Until Overdue {"↓"}</th>
+                  <th style={{ width: 100 }}>Hours Until Due</th>
+                  <th style={{ width: 110 }}>Due Date {"⇅"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...timePMs]
+                  .sort((a, b) => a.due - b.due)
+                  .map((pm, i) => {
+                    const hrsToDue = Math.round((pm.due - Date.now()) / H);
+                    const overdueIn = hrsToDue + 48;
+                    const status = hrsToDue <= -48 ? "OVERDUE" : hrsToDue <= 24 ? "DUE" : "OPPORTUNITY";
+                    return (
+                      <tr key={pm.id} className={i % 2 ? "rowAlt" : "row"}>
+                        <td className="gearCell">
+                          <span
+                            className="gear"
+                            onClick={() =>
+                              setGearMenu(gearMenu?.type === "t" && gearMenu.id === pm.id ? null : { type: "t", id: pm.id })
+                            }
+                          >
+                            {"⚙"}
+                          </span>
+                          {gearMenu?.type === "t" && gearMenu.id === pm.id && (
+                            <div className="gearMenu">
+                              <div onClick={() => completeTimePM(pm)}>{"✓ Mark PM complete"}</div>
+                              <div onClick={() => createWOFromPM(pm.tool, pm.name)}>{"+ Create Work Order"}</div>
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <b>{pm.tool}</b>
+                        </td>
+                        <td className="pmName">{pm.name}</td>
+                        <td>
+                          <PMStatusBadge status={status} />
+                        </td>
+                        <td>{pm.pre}</td>
+                        <td className="numCell hiCol">
+                          {overdueIn > 0 ? overdueIn : <span className="neg">{overdueIn}</span>}
+                        </td>
+                        <td className="numCell">{hrsToDue > 0 ? hrsToDue : ""}</td>
+                        <td className="numCell">{fmtDT(pm.due)}</td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ---- OnDeck usage based PMs ---- */}
+          <div className="pmHeader">
+            <span className="pmHeaderTitle">
+              {"□  O n D e c k  U s a g e  B a s e d  P M s"}
+            </span>
+            <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+              to the top {"▲"}
+            </a>
+          </div>
+          <div className="tableWrap">
+            <table className="grid pmGrid">
+              <thead>
+                <tr className="pmHead">
+                  <th style={{ width: 56 }}>Actions</th>
+                  <th style={{ width: 90 }}>Tool {"⇅"}</th>
+                  <th>PM Name {"⇅"}</th>
+                  <th style={{ width: 120 }}>PM Status {"⇅"}</th>
+                  <th style={{ width: 170 }} className="thHi">Count Until Overdue {"↓"}</th>
+                  <th style={{ width: 150 }}>Count Until Due</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...usagePMs]
+                  .sort((a, b) => b.count / b.limit - a.count / a.limit)
+                  .map((pm, i) => {
+                    const pctOver = Math.round((pm.count / pm.limit) * 100);
+                    const pctDue = Math.round((pm.count / pm.due) * 100);
+                    const status = pm.count >= pm.limit ? "OVERDUE" : pm.count >= pm.due ? "DUE" : "OPPORTUNITY";
+                    return (
+                      <tr key={pm.id} className={i % 2 ? "rowAlt" : "row"}>
+                        <td className="gearCell">
+                          <span
+                            className="gear"
+                            onClick={() =>
+                              setGearMenu(gearMenu?.type === "u" && gearMenu.id === pm.id ? null : { type: "u", id: pm.id })
+                            }
+                          >
+                            {"⚙"}
+                          </span>
+                          {gearMenu?.type === "u" && gearMenu.id === pm.id && (
+                            <div className="gearMenu">
+                              <div onClick={() => resetUsagePM(pm)}>{"✓ Complete + reset counter"}</div>
+                              <div onClick={() => createWOFromPM(pm.tool, pm.name)}>{"+ Create Work Order"}</div>
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <b>{pm.tool}</b>
+                        </td>
+                        <td className="pmName">{pm.name}</td>
+                        <td>
+                          <PMStatusBadge status={status} />
+                        </td>
+                        <td className="numCell hiCol">
+                          {pctOver}% ({pm.count} / {pm.limit} {pm.unit})
+                        </td>
+                        <td className="numCell">
+                          {pctDue}% ({pm.count} / {pm.due} {pm.unit})
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
 
           <div className="pmHeader">
             <span className="pmHeaderTitle">
