@@ -590,6 +590,8 @@ function App() {
   const [query, setQuery] = useState("");
   const [editDaily, setEditDaily] = useState(false);
   const [gearMenu, setGearMenu] = useState(null);
+  const [showPartOrder, setShowPartOrder] = useState(false);
+  const [partOrderReq, setPartOrderReq] = useState({ name: "", qty: 1, source: "", tool: "" });
   const [rowMenu, setRowMenu] = useState(null); // {type:"status"|"deadline", id}
   const [toast, setToast] = useState("");
   const [showSettings, setShowSettings] = useState(false);
@@ -927,7 +929,7 @@ function App() {
         },
       ],
     }));
-    flash(`Part request logged for ${tool} (WO #${wo}).`);
+    flash(wo ? `Part request logged for ${tool} (WO #${wo}).` : `Part request logged${tool && tool !== "\u2014" ? ` for ${tool}` : ""} (no WO).`);
   };
 
   const dotColor = { local: "#8a99a8", syncing: "#e8b90c", synced: "#2fa14a", offline: "#c0271a" }[sync.s];
@@ -948,6 +950,7 @@ function App() {
           <span className={view.page === "passdown" ? "on" : ""} onClick={() => setView({ page: "passdown" })}>
             Main
           </span>
+          <span className="verChip" title="Homebase version">V1</span>
         </nav>
         <span className="chromeRight">
           <span className="syncChip" onClick={pull} title="Tap to sync now">
@@ -1361,7 +1364,7 @@ function App() {
           {/* ---- OnDeck PMs (time based) ---- */}
           <div className="pmHeader">
             <span className="pmHeaderTitle">
-              {"□  O n D e c k  P M s  -  T I M E  B A S E D"}
+              {"□  T i m e  B a s e d  P M s"}
             </span>
             <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               to the top {"▲"}
@@ -1435,7 +1438,7 @@ function App() {
           {/* ---- OnDeck usage based PMs ---- */}
           <div className="pmHeader">
             <span className="pmHeaderTitle">
-              {"□  O n D e c k  U s a g e  B a s e d  P M s"}
+              {"□  U s a g e  B a s e d  P M s"}
             </span>
             <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               to the top {"▲"}
@@ -1509,10 +1512,56 @@ function App() {
           <div className="pmSub">
             {parts.filter((p) => p.status !== "Installed").length}
             {" open part request(s) "}
-            <button className="btnGrad" onClick={() => flash("Use 'Order Parts' inside a Work Order to add a request.")}>
+            <button className="btnGrad" onClick={() => setShowPartOrder((v) => !v)}>
               Order Parts
             </button>
           </div>
+          {showPartOrder && (
+            <div className="statusPicker partOrderBox">
+              <b>Order Part (no Work Order needed):</b>
+              <input
+                className="partInput"
+                value={partOrderReq.name}
+                placeholder="Part description"
+                onChange={(e) => setPartOrderReq({ ...partOrderReq, name: e.target.value })}
+              />
+              Qty
+              <input
+                className="partQty"
+                type="number"
+                min="1"
+                value={partOrderReq.qty}
+                onChange={(e) => setPartOrderReq({ ...partOrderReq, qty: e.target.value })}
+              />
+              <input
+                className="partSrc"
+                value={partOrderReq.source}
+                placeholder="Source (Amazon, Home Depot…)"
+                onChange={(e) => setPartOrderReq({ ...partOrderReq, source: e.target.value })}
+              />
+              <input
+                className="partSrc"
+                value={partOrderReq.tool}
+                placeholder="Tool (optional)"
+                onChange={(e) => setPartOrderReq({ ...partOrderReq, tool: e.target.value })}
+              />
+              <button
+                className="btnGrad"
+                onClick={() => {
+                  if (!partOrderReq.name.trim()) return flash("Part description required.");
+                  addPart(null, partOrderReq.tool.trim() || "\u2014", {
+                    name: partOrderReq.name.trim(),
+                    qty: partOrderReq.qty,
+                    source: partOrderReq.source.trim(),
+                  });
+                  setPartOrderReq({ name: "", qty: 1, source: "", tool: "" });
+                  setShowPartOrder(false);
+                }}
+              >
+                Submit Request
+              </button>
+            </div>
+          )}
           <div className="tableWrap">
             <table className="grid pmGrid">
               <thead>
@@ -1597,7 +1646,7 @@ function App() {
       {view.page === "archive" && (
         <div className="page">
           <div className="crumbLine">
-            <a onClick={() => setView({ page: "passdown" })}>{"\u2190"} Passdown</a>
+            <a onClick={() => setView({ page: "passdown" })}>{"\u2190"} Main</a>
             {"  /  "}
             <b>WOPr - Archive</b>
           </div>
@@ -1697,7 +1746,7 @@ function App() {
         <div className="page">
           <div className="muted">Work order not found (may have been removed on another device).</div>
           <button className="btnGrad" onClick={() => setView({ page: "passdown" })}>
-            {"←"} Back to Passdown
+            {"←"} Back to Main
           </button>
         </div>
       )}
@@ -1825,7 +1874,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
   return (
     <div className="page">
       <div className="crumbLine">
-        <a onClick={onBack}>{"←"} Passdown</a>
+        <a onClick={onBack}>{"←"} Main</a>
         {"  /  "}
         <b>
           {wo.entity} - D1H Homebase - Edit Work Order #{wo.id}

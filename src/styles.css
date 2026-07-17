@@ -351,3 +351,17 @@ body { margin: 0; background: #cfd6dd; }
 .sysMenu { padding: 8px; display: flex; align-items: center; gap: 6px; }
 .sysMenu select { font-size: 16px; max-width: 230px; }
 .sysFilter select { font-size: 16px; padding: 1px 2px; border: 1px solid #8a99a8; max-width: 180px; }
+
+/* V1 version chip in header */
+.verChip {
+  background: #ffd75e;
+  color: #5a3d00;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+  border: 1px solid #c9a227;
+}
+.partOrderBox { margin: 4px 0 8px; }
