@@ -93,6 +93,8 @@ const STATUS_META = {
 
 const LEGACY_STATUSES = ["Running", "UTP", "OOC", "SchQual"];
 
+const ASSIGNEES = ["Cole", "Jessamine", "Unassigned"];
+
 /* Migrate a work order forward: legacy status names -> new set; ensure deadline key exists. */
 function migrateWO(w) {
   let out = w;
@@ -106,6 +108,7 @@ function migrateWO(w) {
   if (out && out.deadline === undefined) out = { ...out, deadline: null };
   if (out && out.system === undefined) out = { ...out, system: null };
   if (out && out.entity === undefined) out = { ...out, entity: "" };
+  if (out && (out.assigned === undefined || out.assigned === "On-Call Homeowner")) out = { ...out, assigned: "Unassigned" };
   return out;
 }
 
@@ -215,7 +218,7 @@ function seedData() {
       updatedBy: "Cole", updated: t - 6 * H,
       contacts: ["Cole"],
       rootCause: "None Entered", preventable: "None Entered",
-      assigned: "On-Call Homeowner", created: t - 6 * H, createdBy: "Cole",
+      assigned: "Unassigned", created: t - 6 * H, createdBy: "Cole",
       deadline: endOfMonth(),
       gameplan: [
         { text: "Submit maintenance request via portal", done: false, by: "" },
@@ -232,7 +235,7 @@ function seedData() {
       updatedBy: "Jessamine", updated: t - 12 * H,
       contacts: ["Jessamine"],
       rootCause: "N/A", preventable: "N/A",
-      assigned: "On-Call Homeowner", created: t - 30 * H, createdBy: "Jessamine",
+      assigned: "Unassigned", created: t - 30 * H, createdBy: "Jessamine",
       deadline: t + 48 * H,
       gameplan: [],
       log: [],
@@ -376,6 +379,51 @@ function PMStatusBadge({ status }) {
   return (
     <span className={`pmBadge ${status === "DUE" ? "pmDue" : status === "OVERDUE" ? "pmOver" : "pmOpp"}`}>
       {status}
+    </span>
+  );
+}
+
+/* Inline tap-to-edit field. Tap the dashed text to edit in place; Enter/blur saves, Escape cancels. */
+function InlineEdit({ value, display, onSave, type = "text", className = "", empty = "Add a value", title = "Tap to edit" }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const cancelled = useRef(false);
+  if (editing)
+    return (
+      <input
+        className={`ieInput ${className}`}
+        type={type}
+        value={draft}
+        autoFocus
+        onFocus={(e) => type !== "date" && e.target.select()}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          setEditing(false);
+          if (!cancelled.current && draft !== String(value ?? "")) onSave(draft);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.target.blur();
+          if (e.key === "Escape") {
+            cancelled.current = true;
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  const shown = display !== undefined ? display : value != null && String(value) !== "" ? value : null;
+  return (
+    <span
+      className={`ieText ${className}`}
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation();
+        cancelled.current = false;
+        setDraft(value == null ? "" : String(value));
+        setEditing(true);
+      }}
+    >
+      {shown ?? <span className="ieEmpty">{empty}</span>}
     </span>
   );
 }
@@ -597,11 +645,13 @@ function App() {
   const { workOrders, timePMs, usagePMs, parts, dailyText } = state;
 
   const [sysFilter, setSysFilter] = useState("");
+  const [assFilter, setAssFilter] = useState("");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = workOrders;
     if (sysFilter) list = list.filter((w) => (w.system || "") === sysFilter);
+    if (assFilter) list = list.filter((w) => (w.assigned || "Unassigned") === assFilter);
     if (q)
       list = list.filter(
         (w) =>
@@ -611,7 +661,7 @@ function App() {
           (w.system || "").toLowerCase().includes(q)
       );
     return list;
-  }, [workOrders, query, sysFilter]);
+  }, [workOrders, query, sysFilter, assFilter]);
 
   const updateWO = (id, patch) =>
     mutate((s) => ({
@@ -650,6 +700,41 @@ function App() {
     setRowMenu(null);
     updateWO(w.id, { system: code });
     flash(code == null ? `WO #${w.id}: system cleared.` : `WO #${w.id} system → ${code}`);
+  };
+
+  const setAssigneeFor = (w, name) => {
+    setRowMenu(null);
+    const next = name || "Unassigned";
+    if (next === (w.assigned || "Unassigned")) return;
+    updateWO(w.id, {
+      assigned: next,
+      log: [...(w.log || []), { by: me, ts: Date.now(), text: `Assigned to ${next}` }],
+    });
+    flash(next === "Unassigned" ? `WO #${w.id}: assignee cleared.` : `WO #${w.id} → ${next}`);
+  };
+
+  const saveDesc = (w, v) => {
+    const d = v.trim();
+    if (!d) return flash("Description can't be empty.");
+    if (d !== w.desc) {
+      updateWO(w.id, {
+        desc: d,
+        log: [...(w.log || []), { by: me, ts: Date.now(), text: `Description updated: '${d}'` }],
+      });
+      flash(`WO #${w.id} description updated.`);
+    }
+  };
+
+  const saveComment = (w, v) => {
+    const t = v.trim();
+    const next = t || "Add a value";
+    if (next !== w.comment) {
+      updateWO(w.id, {
+        comment: next,
+        log: [...(w.log || []), { by: me, ts: Date.now(), text: t ? `Comment updated: '${t}'` : "Comment cleared" }],
+      });
+      flash(`WO #${w.id} comment ${t ? "updated" : "cleared"}.`);
+    }
   };
 
   /* drag to reprioritize */
@@ -700,7 +785,7 @@ function App() {
 
   /* create form */
   const [form, setForm] = useState({
-    entity: "", desc: "", priority: 3, status: "Open", system: "",
+    entity: "", desc: "", priority: 3, status: "Open", system: "", assigned: "Unassigned",
     dlPick: { mode: "none", date: "" },
   });
   const createWO = () => {
@@ -723,7 +808,7 @@ function App() {
         contacts: [me],
         rootCause: "None Entered",
         preventable: "None Entered",
-        assigned: "On-Call Homeowner",
+        assigned: form.assigned || "Unassigned",
         created: Date.now(),
         createdBy: me,
         deadline: deadlineFromPick(form.dlPick),
@@ -734,7 +819,7 @@ function App() {
       flash(`Work Order #${id} created.`);
       return { ...s, woSeq: id, workOrders: [wo, ...s.workOrders] };
     });
-    setForm({ entity: "", desc: "", priority: 3, status: "Open", system: "", dlPick: { mode: "none", date: "" } });
+    setForm({ entity: "", desc: "", priority: 3, status: "Open", system: "", assigned: "Unassigned", dlPick: { mode: "none", date: "" } });
     setShowCreate(false);
   };
 
@@ -778,7 +863,7 @@ function App() {
 
   const quickFill = (c) => {
     setShowCreate(true);
-    setForm({ entity: c.entity, desc: "", priority: c.priority, status: "Open", system: c.system, dlPick: { mode: "none", date: "" } });
+    setForm({ entity: c.entity, desc: "", priority: c.priority, status: "Open", system: c.system, assigned: "Unassigned", dlPick: { mode: "none", date: "" } });
     setTimeout(() => document.getElementById("descInput")?.focus(), 0);
   };
 
@@ -819,7 +904,7 @@ function App() {
         comment: "Generated from OnDeck PM",
         checklist: name, checklistState: "Not Started",
         updatedBy: me, updated: Date.now(), contacts: [me],
-        rootCause: "N/A", preventable: "N/A", assigned: "On-Call Homeowner",
+        rootCause: "N/A", preventable: "N/A", assigned: "Unassigned",
         created: Date.now(), createdBy: me,
         deadline: null,
         system: null,
@@ -831,15 +916,74 @@ function App() {
     setGearMenu(null);
   };
 
-  const advancePart = (id) =>
-    mutate((s) => ({
-      ...s,
-      parts: s.parts.map((p) => {
+  const stepPart = (id, dir) => {
+    let woId = null;
+    let partName = "";
+    let newStatus = "";
+    mutate((s) => {
+      const parts = s.parts.map((p) => {
         if (p.id !== id) return p;
-        const next = PART_FLOW[Math.min(PART_FLOW.indexOf(p.status) + 1, PART_FLOW.length - 1)];
-        return { ...p, status: next, eta: next === "Ordered" || next === "Shipped" ? p.eta || Date.now() + 72 * H : p.eta };
-      }),
-    }));
+        const idx = PART_FLOW.indexOf(p.status);
+        const next = PART_FLOW[Math.min(Math.max(idx + dir, 0), PART_FLOW.length - 1)];
+        if (next === p.status) return p;
+        woId = p.wo;
+        partName = p.part;
+        newStatus = next;
+        return {
+          ...p,
+          status: next,
+          eta: dir > 0 && (next === "Ordered" || next === "Shipped") ? p.eta || Date.now() + 72 * H : p.eta,
+        };
+      });
+      if (!newStatus) return s;
+      let workOrders = s.workOrders;
+      if (woId)
+        workOrders = workOrders.map((w) =>
+          w.id === woId
+            ? {
+                ...w,
+                updated: Date.now(),
+                updatedBy: me,
+                log: [...(w.log || []), { by: me, ts: Date.now(), text: `Supply '${partName}' status → ${newStatus}` }],
+              }
+            : w
+        );
+      return { ...s, parts, workOrders };
+    });
+  };
+
+  const updatePart = (id, field, value, label, shown) => {
+    let woId = null;
+    let partName = "";
+    mutate((s) => {
+      const parts = s.parts.map((p) => {
+        if (p.id !== id) return p;
+        woId = p.wo;
+        partName = field === "part" ? value : p.part;
+        return { ...p, [field]: value };
+      });
+      let workOrders = s.workOrders;
+      if (woId)
+        workOrders = workOrders.map((w) =>
+          w.id === woId
+            ? {
+                ...w,
+                updated: Date.now(),
+                updatedBy: me,
+                log: [...(w.log || []), { by: me, ts: Date.now(), text: `Supply '${partName}': ${label} → ${shown}` }],
+              }
+            : w
+        );
+      return { ...s, parts, workOrders };
+    });
+    flash(`Supply ${label.toLowerCase()} updated.`);
+  };
+
+  const updateTimePM = (id, patch) =>
+    mutate((s) => ({ ...s, timePMs: s.timePMs.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+
+  const updateUsagePM = (id, patch) =>
+    mutate((s) => ({ ...s, usagePMs: s.usagePMs.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
 
   const addPart = (wo, tool, req) => {
     mutate((s) => ({
@@ -980,6 +1124,15 @@ function App() {
                 <SystemOptions noneLabel="All" />
               </select>
             </label>
+            <label className="chk sysFilter">
+              Assignee
+              <select value={assFilter} onChange={(e) => setAssFilter(e.target.value)}>
+                <option value="">All</option>
+                {ASSIGNEES.map((a) => (
+                  <option key={a}>{a}</option>
+                ))}
+              </select>
+            </label>
             {showBulk && (
               <span className="bulkBar">
                 {"Set selected to "}
@@ -1048,6 +1201,14 @@ function App() {
                       .map((s) => (
                         <option key={s}>{s}</option>
                       ))}
+                  </select>
+                </label>
+                <label>
+                  Assignee
+                  <select value={form.assigned} onChange={(e) => setForm({ ...form, assigned: e.target.value })}>
+                    {ASSIGNEES.map((a) => (
+                      <option key={a}>{a}</option>
+                    ))}
                   </select>
                 </label>
                 <label>
@@ -1187,6 +1348,33 @@ function App() {
                                     </select>
                                   </div>
                                 )}
+                                <a
+                                  className={`asgnChip asgn-${(w.assigned || "Unassigned").toLowerCase()}`}
+                                  title="Reassign work order"
+                                  onClick={() =>
+                                    setRowMenu(
+                                      rowMenu?.type === "assign" && rowMenu.id === w.id ? null : { type: "assign", id: w.id }
+                                    )
+                                  }
+                                >
+                                  {(w.assigned || "Unassigned") === "Unassigned"
+                                    ? "+ASGN"
+                                    : (w.assigned || "").slice(0, 1).toUpperCase() + (w.assigned || "").slice(1)}
+                                </a>
+                                {rowMenu?.type === "assign" && rowMenu.id === w.id && (
+                                  <div className="gearMenu sysMenu">
+                                    <b>Assignee:</b>
+                                    <select
+                                      value={w.assigned || "Unassigned"}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => setAssigneeFor(w, e.target.value)}
+                                    >
+                                      {ASSIGNEES.map((a) => (
+                                        <option key={a}>{a}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td className="flowCell menuCell">
@@ -1214,17 +1402,16 @@ function App() {
                                 </div>
                               )}
                             </td>
-                            <td className="descCell" onClick={() => openDetail(w.id)}>
-                              {w.desc}
+                            <td className="descCell">
+                              <InlineEdit value={w.desc} onSave={(v) => saveDesc(w, v)} title="Tap to edit description" />
                             </td>
                             <td className="commentCell">
-                              {w.comment === "Add a value" ? (
-                                <a className="addVal" onClick={() => openDetail(w.id)}>
-                                  Add a value
-                                </a>
-                              ) : (
-                                w.comment
-                              )}
+                              <InlineEdit
+                                value={w.comment === "Add a value" ? "" : w.comment}
+                                onSave={(v) => saveComment(w, v)}
+                                empty="Add a value"
+                                title="Tap to edit comment"
+                              />
                             </td>
                             <td className="dlCell menuCell">
                               <a
@@ -1345,18 +1532,71 @@ function App() {
                           )}
                         </td>
                         <td>
-                          <b>{pm.tool}</b>
+                          <b>
+                            <InlineEdit
+                              value={pm.tool}
+                              onSave={(v) => v.trim() && (updateTimePM(pm.id, { tool: v.trim() }), flash(`PM item → ${v.trim()}`))}
+                              title="Tap to edit item"
+                            />
+                          </b>
                         </td>
-                        <td className="pmName">{pm.name}</td>
+                        <td className="pmName">
+                          <InlineEdit
+                            value={pm.name}
+                            onSave={(v) => v.trim() && (updateTimePM(pm.id, { name: v.trim() }), flash("PM name updated."))}
+                            title="Tap to edit PM name"
+                          />
+                        </td>
                         <td>
                           <PMStatusBadge status={status} />
                         </td>
                         <td>{pm.pre}</td>
                         <td className="numCell hiCol">
-                          {overdueIn > 0 ? overdueIn : <span className="neg">{overdueIn}</span>}
+                          <InlineEdit
+                            type="number"
+                            className="ieNum"
+                            value={overdueIn}
+                            display={overdueIn > 0 ? overdueIn : <span className="neg">{overdueIn}</span>}
+                            onSave={(v) => {
+                              const n = Number(v);
+                              if (!Number.isFinite(n)) return;
+                              const due = Date.now() + (n - 48) * H;
+                              updateTimePM(pm.id, { due });
+                              flash(`${pm.name}: due ${fmtDT(due)}.`);
+                            }}
+                            title="Tap to edit hours until overdue"
+                          />
                         </td>
-                        <td className="numCell">{hrsToDue > 0 ? hrsToDue : ""}</td>
-                        <td className="numCell">{fmtDT(pm.due)}</td>
+                        <td className="numCell">
+                          <InlineEdit
+                            type="number"
+                            className="ieNum"
+                            value={hrsToDue}
+                            display={hrsToDue > 0 ? hrsToDue : "—"}
+                            onSave={(v) => {
+                              const n = Number(v);
+                              if (!Number.isFinite(n)) return;
+                              const due = Date.now() + n * H;
+                              updateTimePM(pm.id, { due });
+                              flash(`${pm.name}: due ${fmtDT(due)}.`);
+                            }}
+                            title="Tap to edit hours until due"
+                          />
+                        </td>
+                        <td className="numCell">
+                          <InlineEdit
+                            type="date"
+                            value={tsToDateInput(pm.due)}
+                            display={fmtDT(pm.due)}
+                            onSave={(v) => {
+                              if (!v) return;
+                              const due = dateInputToTs(v);
+                              updateTimePM(pm.id, { due });
+                              flash(`${pm.name}: due ${fmtDT(due)}.`);
+                            }}
+                            title="Tap to pick a due date"
+                          />
+                        </td>
                       </tr>
                     );
                   })}
@@ -1411,17 +1651,81 @@ function App() {
                           )}
                         </td>
                         <td>
-                          <b>{pm.tool}</b>
+                          <b>
+                            <InlineEdit
+                              value={pm.tool}
+                              onSave={(v) => v.trim() && (updateUsagePM(pm.id, { tool: v.trim() }), flash(`PM item → ${v.trim()}`))}
+                              title="Tap to edit item"
+                            />
+                          </b>
                         </td>
-                        <td className="pmName">{pm.name}</td>
+                        <td className="pmName">
+                          <InlineEdit
+                            value={pm.name}
+                            onSave={(v) => v.trim() && (updateUsagePM(pm.id, { name: v.trim() }), flash("PM name updated."))}
+                            title="Tap to edit PM name"
+                          />
+                        </td>
                         <td>
                           <PMStatusBadge status={status} />
                         </td>
                         <td className="numCell hiCol">
-                          {pctOver}% ({pm.count} / {pm.limit} {pm.unit})
+                          {pctOver}% (
+                          <InlineEdit
+                            type="number"
+                            className="ieNum"
+                            value={pm.count}
+                            onSave={(v) => {
+                              const n = Number(v);
+                              if (!Number.isFinite(n) || n < 0) return;
+                              updateUsagePM(pm.id, { count: n });
+                              flash(`${pm.name}: counter → ${n} ${pm.unit}.`);
+                            }}
+                            title="Tap to edit current count"
+                          />
+                          {" / "}
+                          <InlineEdit
+                            type="number"
+                            className="ieNum"
+                            value={pm.limit}
+                            onSave={(v) => {
+                              const n = Number(v);
+                              if (!Number.isFinite(n) || n <= 0) return;
+                              updateUsagePM(pm.id, { limit: n });
+                              flash(`${pm.name}: overdue limit → ${n} ${pm.unit}.`);
+                            }}
+                            title="Tap to edit overdue limit"
+                          />{" "}
+                          {pm.unit})
                         </td>
                         <td className="numCell">
-                          {pctDue}% ({pm.count} / {pm.due} {pm.unit})
+                          {pctDue}% (
+                          <InlineEdit
+                            type="number"
+                            className="ieNum"
+                            value={pm.count}
+                            onSave={(v) => {
+                              const n = Number(v);
+                              if (!Number.isFinite(n) || n < 0) return;
+                              updateUsagePM(pm.id, { count: n });
+                              flash(`${pm.name}: counter → ${n} ${pm.unit}.`);
+                            }}
+                            title="Tap to edit current count"
+                          />
+                          {" / "}
+                          <InlineEdit
+                            type="number"
+                            className="ieNum"
+                            value={pm.due}
+                            onSave={(v) => {
+                              const n = Number(v);
+                              if (!Number.isFinite(n) || n <= 0) return;
+                              updateUsagePM(pm.id, { due: n });
+                              flash(`${pm.name}: due threshold → ${n} ${pm.unit}.`);
+                            }}
+                            title="Tap to edit due threshold"
+                          />{" "}
+                          {pm.unit})
                         </td>
                       </tr>
                     );
@@ -1510,9 +1814,22 @@ function App() {
                   .sort((a, b) => PART_FLOW.indexOf(a.status) - PART_FLOW.indexOf(b.status))
                   .map((p, i) => (
                     <tr key={p.id} className={(i % 2 ? "rowAlt" : "row") + (p.status === "Put Away" ? " partDone" : "")}>
-                      <td>{p.part}</td>
                       <td>
-                        <b>{p.tool}</b>
+                        <InlineEdit
+                          value={p.part}
+                          onSave={(v) => v.trim() && updatePart(p.id, "part", v.trim(), "Part", v.trim())}
+                          title="Tap to edit part"
+                        />
+                      </td>
+                      <td>
+                        <b>
+                          <InlineEdit
+                            value={p.tool === "—" ? "" : p.tool}
+                            empty="—"
+                            onSave={(v) => updatePart(p.id, "tool", v.trim() || "—", "For Item", v.trim() || "—")}
+                            title="Tap to edit item"
+                          />
+                        </b>
                       </td>
                       <td>
                         {p.wo ? (
@@ -1523,15 +1840,56 @@ function App() {
                           "—"
                         )}
                       </td>
-                      <td className="numCell">{p.qty}</td>
-                      <td>{p.source}</td>
+                      <td className="numCell">
+                        <InlineEdit
+                          type="number"
+                          className="ieNum"
+                          value={p.qty}
+                          onSave={(v) => {
+                            const n = Number(v);
+                            if (!Number.isFinite(n) || n < 1) return;
+                            updatePart(p.id, "qty", n, "Qty", n);
+                          }}
+                          title="Tap to edit quantity"
+                        />
+                      </td>
+                      <td>
+                        <InlineEdit
+                          value={p.source}
+                          empty="TBD"
+                          onSave={(v) => updatePart(p.id, "source", v.trim() || "TBD", "Source", v.trim() || "TBD")}
+                          title="Tap to edit source"
+                        />
+                      </td>
                       <td>
                         <span className={`partBadge pb${PART_FLOW.indexOf(p.status)}`}>{p.status}</span>
                       </td>
-                      <td className="numCell">{p.eta ? fmtDT(p.eta) : "—"}</td>
-                      <td>
+                      <td className="numCell">
+                        <InlineEdit
+                          type="date"
+                          value={p.eta ? tsToDateInput(p.eta) : ""}
+                          display={p.eta ? fmtDT(p.eta) : null}
+                          empty="—"
+                          onSave={(v) => {
+                            if (!v) return;
+                            const ts = dateInputToTs(v);
+                            updatePart(p.id, "eta", ts, "ETA", fmtDeadline(ts));
+                          }}
+                          title="Tap to set ETA"
+                        />
+                      </td>
+                      <td className="partActs">
+                        {p.status !== "Requested" && (
+                          <button
+                            className="btnGrad btnSm"
+                            title={`Back to ${PART_FLOW[PART_FLOW.indexOf(p.status) - 1]}`}
+                            onClick={() => stepPart(p.id, -1)}
+                          >
+                            {"◀"}
+                          </button>
+                        )}
                         {p.status !== "Put Away" ? (
-                          <button className="btnGrad btnSm" onClick={() => advancePart(p.id)}>
+                          <button className="btnGrad btnSm" onClick={() => stepPart(p.id, 1)}>
                             {"▶"} {PART_FLOW[PART_FLOW.indexOf(p.status) + 1]}
                           </button>
                         ) : (
@@ -2023,7 +2381,25 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
             </tr>
             <tr>
               <td>Assigned to:</td>
-              <td>{wo.assigned}</td>
+              <td>
+                <select
+                  className="dtlAssignSel"
+                  value={wo.assigned || "Unassigned"}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    if (next === (wo.assigned || "Unassigned")) return;
+                    updateWO(wo.id, {
+                      assigned: next,
+                      log: [...(wo.log || []), { by: me, ts: Date.now(), text: `Assigned to ${next}` }],
+                    });
+                    flash(next === "Unassigned" ? `WO #${wo.id}: assignee cleared.` : `WO #${wo.id} → ${next}`);
+                  }}
+                >
+                  {ASSIGNEES.map((a) => (
+                    <option key={a}>{a}</option>
+                  ))}
+                </select>
+              </td>
             </tr>
             <tr>
               <td>Created on:</td>

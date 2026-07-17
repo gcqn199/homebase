@@ -156,7 +156,18 @@ body { margin: 0; background: #cfd6dd; }
 .gearMenu div { padding: 7px 10px; cursor: pointer; }
 .gearMenu div:hover { background: #dce8f5; }
 
+/* inline tap-to-edit fields */
+.ieText { cursor: pointer; border-bottom: 1px dashed #b9c4cf; }
+.ieText:hover, .ieText:active { background: #fdf3c8; border-bottom-color: #4a7ab5; }
+.ieEmpty { color: #0b3d91; }
+.ieInput { font-size: 11px; border: 1px solid #4a7ab5; background: #fffef2; padding: 2px 3px; box-sizing: border-box; width: 100%; min-width: 70px; }
+.ieInput.ieNum { width: 68px; min-width: 0; text-align: right; }
+input.ieInput[type="date"] { width: auto; min-width: 0; }
+.numCell .ieText { border-bottom-style: dotted; }
+
 /* parts table */
+.partActs { white-space: nowrap; }
+.partActs .btnSm + .btnSm { margin-left: 4px; }
 .partBadge { display: inline-block; width: 88px; text-align: center; padding: 2px 0; font-weight: 700; font-size: 10px; border: 1px solid rgba(0,0,0,.15); }
 .pb0 { background: #e6e9ec; color: #444; }
 .pb1 { background: #dce8f5; color: #1f4f86; }
@@ -351,6 +362,16 @@ body { margin: 0; background: #cfd6dd; }
 .sysMenu { padding: 8px; display: flex; align-items: center; gap: 6px; }
 .sysMenu select { font-size: 16px; max-width: 230px; }
 .sysFilter select { font-size: 16px; padding: 1px 2px; border: 1px solid #8a99a8; max-width: 180px; }
+
+/* assignee chip on board rows */
+.asgnChip {
+  display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .5px;
+  padding: 0 4px; border: 1px solid rgba(0,0,0,.2); cursor: pointer; white-space: nowrap;
+}
+.asgnChip.asgn-cole      { background: #f4d5a5; color: #6a3d05; border-color: #d1a862; }
+.asgnChip.asgn-jessamine { background: #f4b8d6; color: #7a1d4a; border-color: #d18cae; }
+.asgnChip.asgn-unassigned { background: #f2f2f2; color: #8a99a8; border-color: #b4bcc4; text-decoration: underline dashed; }
+.dtlAssignSel { font-size: 16px; padding: 1px 2px; border: 1px solid #8a99a8; }
 
 /* V1 version chip in header */
 .verChip {
