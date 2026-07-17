@@ -943,7 +943,7 @@ function App() {
   return (
     <div className="app">
       <div className="chrome">
-        <span className="chromeBrand">{"◉"} HOMEBASE</span>
+        <span className="chromeBrand">{"◉"} HOMEBASE HQ</span>
         <nav className="chromeNav">
           <span className={view.page === "passdown" ? "on" : ""} onClick={() => setView({ page: "passdown" })}>
             Main
