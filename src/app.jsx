@@ -16,6 +16,21 @@ const LS_CFG = "homebase.cfg.v1";
    existed are summarized in the last entry. */
 const CHANGELOG = [
   {
+    v: 19,
+    date: "7/18/2026",
+    notes: [
+      "New View toggle in the owner bar: Full (whole board) or Simple (lists + Notes only). Each phone remembers its own choice, and it no longer changes when you switch Owner — on first launch it starts from whatever that phone showed before.",
+      "The version chip (this page's shortcut) is now visible on phones, next to the HOMEBASE title.",
+    ],
+  },
+  {
+    v: 18,
+    date: "7/18/2026",
+    notes: [
+      "Under-the-hood cleanup — no feature changes. Removed leftover factory-era code (an invisible downtime questionnaire, unused fields on new work orders, orphaned styles) and consolidated duplicate logic. Everything looks and works the same.",
+    ],
+  },
+  {
     v: 17,
     date: "7/18/2026",
     notes: [
@@ -62,12 +77,8 @@ function fmtClock(ts) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function fmtToday() {
-  const d = new Date();
-  return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
-}
-
 /* ---------- deadline helpers ---------- */
+/* fmtDeadline(Date.now()) doubles as the "today" stamp in the header. */
 function fmtDeadline(ts) {
   const d = new Date(ts);
   return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
@@ -104,6 +115,15 @@ function tsToDateInput(ts) {
 function isOverdue(wo) {
   return wo.deadline != null && wo.deadline < Date.now() && wo.status !== "Closed";
 }
+
+/* One list drives every deadline preset UI (create form, detail picker, board row menu)
+   plus deadlineFromPick — add/change presets here only. */
+const DL_PRESETS = [
+  { mode: "tom", label: "Tomorrow", ts: () => relDays(1) },
+  { mode: "wk", label: "Next week", ts: () => relDays(7) },
+  { mode: "eom", label: "End of month", ts: endOfMonth },
+  { mode: "eoy", label: "End of year", ts: endOfYear },
+];
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOWS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -171,6 +191,34 @@ function migrateState(s) {
     };
   }
   return out;
+}
+
+/* Single factory for new work orders — every creation path (create form, seed,
+   OnDeck PM, Quick Capture promote) goes through here so the stored shape stays
+   consistent. "Add a value" is the empty-comment sentinel (Fuzion convention);
+   the UI renders it as the tap-to-edit placeholder. */
+function makeWO(id, by, over = {}) {
+  const now = Date.now();
+  return {
+    id,
+    entity: "",
+    status: "Open",
+    priority: 3,
+    desc: "",
+    comment: "Add a value",
+    checklist: "",
+    checklistState: "",
+    updatedBy: by,
+    updated: now,
+    assigned: "Unassigned",
+    created: now,
+    createdBy: by,
+    deadline: null,
+    system: null,
+    gameplan: [],
+    log: [],
+    ...over,
+  };
 }
 
 const PART_FLOW = ["Requested", "Ordered", "Shipped", "Received", "Put Away"];
@@ -259,83 +307,51 @@ function seedData() {
   const nwo = () => ++woSeq;
   let partSeq = 100;
   const workOrders = [
-    {
-      id: nwo(), entity: "Bathroom sink", level: "L8", status: "Open", priority: 2, system: "LANDLORD",
-      flow: "Open",
+    makeWO(nwo(), "Cole", {
+      entity: "Bathroom sink", priority: 2, system: "LANDLORD",
       desc: "Report slow-draining bathroom sink to property management",
       comment: "Draining slower each week — get maintenance request in before it clogs fully.",
-      checklist: "", checklistState: "",
-      updatedBy: "Cole", updated: t - 6 * H,
-      contacts: ["Cole"],
-      rootCause: "None Entered", preventable: "None Entered",
-      assigned: "Unassigned", created: t - 6 * H, createdBy: "Cole",
+      updated: t - 6 * H, created: t - 6 * H,
       deadline: endOfMonth(),
       gameplan: [
         { text: "Submit maintenance request via portal", done: false, by: "" },
         { text: "Note ticket # in comments", done: false, by: "" },
       ],
-      log: [],
-    },
-    {
-      id: nwo(), entity: "Litterbox", level: "L8", status: "Open", priority: 3, system: "PET",
-      flow: "Open",
+    }),
+    makeWO(nwo(), "Jessamine", {
+      entity: "Litterbox", priority: 3, system: "PET",
       desc: "Full litter change — all 3 boxes, wash + refill",
       comment: "Matcha, Java, and Chai have filed formal complaints.",
-      checklist: "", checklistState: "",
-      updatedBy: "Jessamine", updated: t - 12 * H,
-      contacts: ["Jessamine"],
-      rootCause: "N/A", preventable: "N/A",
-      assigned: "Unassigned", created: t - 30 * H, createdBy: "Jessamine",
+      updated: t - 12 * H, created: t - 30 * H,
       deadline: t + 48 * H,
-      gameplan: [],
-      log: [],
-    },
-    {
-      id: nwo(), entity: "Kitchen", level: "L8", status: "Open", priority: 3, system: "MEAL",
-      flow: "Open",
+    }),
+    makeWO(nwo(), "Jessamine", {
+      entity: "Kitchen", priority: 3, system: "MEAL",
       desc: "Sunday meal prep — workday lunches x5 each",
-      comment: "Add a value",
-      checklist: "", checklistState: "",
-      updatedBy: "Jessamine", updated: t - 20 * H,
-      contacts: ["Jessamine"],
-      rootCause: "N/A", preventable: "N/A",
-      assigned: "Jessamine", created: t - 40 * H, createdBy: "Jessamine",
+      assigned: "Jessamine",
+      updated: t - 20 * H, created: t - 40 * H,
       deadline: t + 72 * H,
       gameplan: [
         { text: "Plan menu + grocery list", done: false, by: "" },
         { text: "Grocery run", done: false, by: "" },
         { text: "Cook + portion into containers", done: false, by: "" },
       ],
-      log: [],
-    },
-    {
-      id: nwo(), entity: "Ebike 1", level: "L8", status: "Open", priority: 4, system: "BIKE",
-      flow: "Open",
+    }),
+    makeWO(nwo(), "Cole", {
+      entity: "Ebike 1", priority: 4, system: "BIKE",
       desc: "Brake pad check + chain clean/lube",
       comment: "Front brakes feeling soft on the commute.",
-      checklist: "", checklistState: "",
-      updatedBy: "Cole", updated: t - 15 * H,
-      contacts: ["Cole"],
-      rootCause: "None Entered", preventable: "None Entered",
-      assigned: "Cole", created: t - 50 * H, createdBy: "Cole",
-      deadline: null,
-      gameplan: [],
-      log: [],
-    },
-    {
-      id: nwo(), entity: "Apartment", level: "L5", status: "In Progress", priority: 5, system: "ORG",
-      flow: "In Progress",
+      assigned: "Cole",
+      updated: t - 15 * H, created: t - 50 * H,
+    }),
+    makeWO(nwo(), "Cole", {
+      entity: "Apartment", status: "In Progress", priority: 5, system: "ORG",
       desc: "Closet declutter — donate pile to drop-off",
       comment: "Two bags staged by the door. Do not let them become furniture.",
-      checklist: "", checklistState: "",
-      updatedBy: "Cole", updated: t - 60 * H,
-      contacts: ["Cole", "Jessamine"],
-      rootCause: "N/A", preventable: "N/A",
-      assigned: "Cole", created: t - 120 * H, createdBy: "Cole",
+      assigned: "Cole",
+      updated: t - 60 * H, created: t - 120 * H,
       deadline: endOfMonth(),
-      gameplan: [],
-      log: [],
-    },
+    }),
   ];
   const timePMs = [
     { id: 1, tool: "Litterbox", name: "Full litter change (all 3 boxes)", due: t - 7 * H, freqH: 168 },
@@ -384,7 +400,19 @@ function seedData() {
 
 /* ---------- storage ---------- */
 function loadCfg() {
-  try { return JSON.parse(localStorage.getItem(LS_CFG)) || {}; } catch { return {}; }
+  try {
+    const c = JSON.parse(localStorage.getItem(LS_CFG)) || {};
+    /* One-time per-device backfill: view mode used to follow Owner (Jessamine = Simple).
+       Seed it from this phone's current owner so the update changes nothing visually,
+       then it's an independent per-device setting from here on. */
+    if (c.viewMode !== "full" && c.viewMode !== "simple") {
+      c.viewMode = c.userName === "Jessamine" ? "simple" : "full";
+      saveCfg(c);
+    }
+    return c;
+  } catch {
+    return { viewMode: "full" };
+  }
 }
 
 function saveCfg(cfg) {
@@ -494,10 +522,11 @@ function DeadlineSelect({ value, onChange }) {
     <>
       <select value={value.mode} onChange={(e) => onChange({ ...value, mode: e.target.value })}>
         <option value="none">No deadline</option>
-        <option value="tom">Tomorrow ({fmtDeadline(relDays(1))})</option>
-        <option value="wk">Next week ({fmtDeadline(relDays(7))})</option>
-        <option value="eom">End of month ({fmtDeadline(endOfMonth())})</option>
-        <option value="eoy">End of year ({fmtDeadline(endOfYear())})</option>
+        {DL_PRESETS.map((p) => (
+          <option key={p.mode} value={p.mode}>
+            {p.label} ({fmtDeadline(p.ts())})
+          </option>
+        ))}
         <option value="date">Pick date…</option>
       </select>
       {value.mode === "date" && (
@@ -514,10 +543,8 @@ function DeadlineSelect({ value, onChange }) {
 }
 
 function deadlineFromPick(pick) {
-  if (pick.mode === "tom") return relDays(1);
-  if (pick.mode === "wk") return relDays(7);
-  if (pick.mode === "eom") return endOfMonth();
-  if (pick.mode === "eoy") return endOfYear();
+  const preset = DL_PRESETS.find((p) => p.mode === pick.mode);
+  if (preset) return preset.ts();
   if (pick.mode === "date" && pick.date) return dateInputToTs(pick.date);
   return null;
 }
@@ -785,6 +812,12 @@ function App() {
     };
   }, [pull]);
 
+  /* Manual refresh = pull + toast; shared by the header icon, calendar, WOPr, and archive. */
+  const refreshNow = () => {
+    pull();
+    flash("Refreshed at " + fmtShort(Date.now()));
+  };
+
   const { workOrders, timePMs, usagePMs, parts, dailyText } = state;
 
   const [sysFilter, setSysFilter] = useState("");
@@ -831,7 +864,6 @@ function App() {
       status: s,
       log: [...(w.log || []), { by: me, ts: Date.now(), text: `WorkOrderStatusOption changed to ${s}` }],
     };
-    if (s === "Closed") patch.flow = "Closed";
     updateWO(w.id, patch);
     flash(s === "Closed" ? `Entry #${w.id} closed.` : `WO #${w.id} status → ${s}`);
   };
@@ -938,30 +970,15 @@ function App() {
     if (!form.desc.trim()) return flash("Description is required.");
     mutate((s) => {
       const id = s.woSeq + 1;
-      const wo = {
-        id,
+      const wo = makeWO(id, me, {
         entity: form.entity.trim(),
-        level: "L8",
         status: form.status,
         priority: Number(form.priority),
-        flow: "Open",
         desc: form.desc.trim(),
-        comment: "Add a value",
-        checklist: "",
-        checklistState: "",
-        updatedBy: me,
-        updated: Date.now(),
-        contacts: [me],
-        rootCause: "None Entered",
-        preventable: "None Entered",
         assigned: form.assigned || "Unassigned",
-        created: Date.now(),
-        createdBy: me,
         deadline: deadlineFromPick(form.dlPick),
         system: form.system || null,
-        gameplan: [],
-        log: [],
-      };
+      });
       flash(`Work Order #${id} created.`);
       return { ...s, woSeq: id, workOrders: [wo, ...s.workOrders] };
     });
@@ -978,13 +995,11 @@ function App() {
         ...src,
         id,
         status: "Open",
-        flow: "Open",
         comment: "Add a value",
         checklist: "",
         checklistState: "",
         updatedBy: me,
         updated: Date.now(),
-        contacts: [me],
         created: Date.now(),
         createdBy: me,
         gameplan: [],
@@ -995,7 +1010,7 @@ function App() {
     });
   };
 
-  /* Quick Add: distinct categories already in use, most-used first — one tap to template a new WO. */
+  /* Quick Add: distinct Items already in use, most-used first — one tap to template a new WO. */
   const quickCats = useMemo(() => {
     const seen = new Map();
     for (const w of workOrders) {
@@ -1020,7 +1035,7 @@ function App() {
       ...s,
       workOrders: s.workOrders.map((w) =>
         ids.includes(w.id)
-          ? { ...w, status: bulkStatus, ...(bulkStatus === "Closed" ? { flow: "Closed" } : {}), updated: Date.now(), updatedBy: me }
+          ? { ...w, status: bulkStatus, updated: Date.now(), updatedBy: me }
           : w
       ),
     }));
@@ -1044,18 +1059,14 @@ function App() {
   const createWOFromPM = (tool, name) => {
     mutate((s) => {
       const id = s.woSeq + 1;
-      const wo = {
-        id, entity: tool, level: "L8", status: "Open", priority: 4, flow: "Open",
+      const wo = makeWO(id, me, {
+        entity: tool,
+        priority: 4,
         desc: `Execute ${name}`,
         comment: "Generated from OnDeck PM",
-        checklist: name, checklistState: "Not Started",
-        updatedBy: me, updated: Date.now(), contacts: [me],
-        rootCause: "N/A", preventable: "N/A", assigned: "Unassigned",
-        created: Date.now(), createdBy: me,
-        deadline: null,
-        system: null,
-        gameplan: [], log: [],
-      };
+        checklist: name,
+        checklistState: "Not Started",
+      });
       flash(`Work Order #${id} created from ${name}.`);
       return { ...s, woSeq: id, workOrders: [...s.workOrders, wo] };
     });
@@ -1196,9 +1207,7 @@ function App() {
       }
     } else flash("Sharing not supported on this device.");
   };
-  const shareShopping = () => shareLines(shopping.filter((i) => !i.done).map((i) => "• " + i.text).join("\n"));
-  const shareTodays = () => shareLines(todays.filter((i) => !i.done).map((i) => "• " + i.text).join("\n"));
-  const shareCapture = () => shareLines(capture.filter((i) => !i.done).map((i) => "• " + i.text).join("\n"));
+  const shareOpen = (list) => shareLines(list.filter((i) => !i.done).map((i) => "• " + i.text).join("\n"));
   const sharePartOrders = () =>
     shareLines(
       parts
@@ -1223,27 +1232,19 @@ function App() {
   const promoteCapture = (it) => {
     mutate((s) => {
       const id = s.woSeq + 1;
-      const wo = {
-        id, entity: "", level: "L8", status: "Open", priority: 3, flow: "Open",
+      const wo = makeWO(id, me, {
         desc: it.text,
-        comment: "Add a value",
-        checklist: "", checklistState: "",
-        updatedBy: me, updated: Date.now(), contacts: [me],
-        rootCause: "None Entered", preventable: "None Entered",
-        assigned: "Unassigned",
-        created: Date.now(), createdBy: me,
-        deadline: null, system: null,
-        gameplan: [],
         log: [{ by: me, ts: Date.now(), text: "Promoted from Quick Capture" }],
-      };
+      });
       flash(`Work Order #${id} created from Quick Capture.`);
       return { ...s, woSeq: id, workOrders: [wo, ...s.workOrders], capture: (s.capture || []).filter((c) => c.id !== it.id) };
     });
     setGearMenu(null);
   };
 
-  /* View mode is tied to Owner — Cole = Full, Jessamine = Simple (lists + Notes only). */
-  const simple = me === "Jessamine";
+  /* View mode is per-device (homebase.cfg.v1), independent of Owner.
+     Simple = lists + Notes only; Full = the whole board. */
+  const simple = cfg.viewMode === "simple";
   const scrollToSect = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
   const dotColor = { local: "#8a99a8", syncing: "#e8b90c", synced: "#2fa14a", offline: "#c0271a" }[sync.s];
@@ -1260,25 +1261,22 @@ function App() {
     <div className="app">
       <div className="chrome">
         <span className="chromeBrand">{"◉"} HOMEBASE</span>
+        <span
+          className="verChip"
+          title="View what's new"
+          onClick={() => setView({ page: "changelog" })}
+        >
+          {typeof window !== "undefined" && window.HOMEBASE_VERSION ? window.HOMEBASE_VERSION : "V?"}
+        </span>
         <nav className="chromeNav">
           <span className={view.page === "passdown" ? "on" : ""} onClick={() => setView({ page: "passdown" })}>
             Main
-          </span>
-          <span
-            className="verChip"
-            title="View what's new"
-            onClick={() => setView({ page: "changelog" })}
-          >
-            {typeof window !== "undefined" && window.HOMEBASE_VERSION ? window.HOMEBASE_VERSION : "V?"}
           </span>
         </nav>
         <span className="chromeRight">
           <span
             className="refreshTop"
-            onClick={() => {
-              pull();
-              flash("Refreshed at " + fmtShort(Date.now()));
-            }}
+            onClick={refreshNow}
             title="Refresh"
           >
             {"⟳"}
@@ -1288,7 +1286,7 @@ function App() {
           </span>
           <u>{me}</u>
           {" | "}
-          {fmtToday()}
+          {fmtDeadline(Date.now())}
           <span className="gearTop" onClick={() => setShowSettings(true)} title="Settings">
             {"⚙"}
           </span>
@@ -1346,6 +1344,28 @@ function App() {
                 {n}
               </button>
             ))}
+            <span className="viewBtns">
+              <b>View:</b>
+              {[
+                { v: "full", lb: "Full" },
+                { v: "simple", lb: "Simple" },
+              ].map(({ v, lb }) => (
+                <button
+                  key={v}
+                  className={"ownBtn vwBtn" + (cfg.viewMode === v ? " vwOn" : "")}
+                  title={v === "full" ? "Whole board on this phone" : "Lists + Notes only on this phone"}
+                  onClick={() => {
+                    if (cfg.viewMode === v) return;
+                    const c = { ...cfg, viewMode: v };
+                    setCfg(c);
+                    saveCfg(c);
+                    flash(v === "simple" ? "Simple view — lists & Notes only." : "Full view — whole board.");
+                  }}
+                >
+                  {lb}
+                </button>
+              ))}
+            </span>
             <span className="ownHint">updates, comments & closures log as: {me}</span>
           </div>
 
@@ -1368,23 +1388,14 @@ function App() {
           <DeadlineCalendar
             workOrders={workOrders}
             onOpen={openDetail}
-            onRefresh={() => {
-              pull();
-              flash("Refreshed at " + fmtShort(Date.now()));
-            }}
+            onRefresh={refreshNow}
           />
 
           <div className="pmHeader">
             <span className="pmHeaderTitle">{"□ WOPr"}</span>
           </div>
           <div className="pmSub woprSub">
-            <button
-              className="btnGrad"
-              onClick={() => {
-                pull();
-                flash("Refreshed at " + fmtShort(Date.now()));
-              }}
-            >
+            <button className="btnGrad" onClick={refreshNow}>
               Refresh
             </button>
             <button className="btnGrad" onClick={() => setView({ page: "archive" })} title="View closed work orders">
@@ -1711,18 +1722,11 @@ function App() {
                               {rowMenu?.type === "deadline" && rowMenu.id === w.id && (
                                 <div className="gearMenu dlMenu">
                                   <div onClick={() => setDeadlineFor(w, null)}>No deadline</div>
-                                  <div onClick={() => setDeadlineFor(w, relDays(1))}>
-                                    Tomorrow ({fmtDeadline(relDays(1))})
-                                  </div>
-                                  <div onClick={() => setDeadlineFor(w, relDays(7))}>
-                                    Next week ({fmtDeadline(relDays(7))})
-                                  </div>
-                                  <div onClick={() => setDeadlineFor(w, endOfMonth())}>
-                                    End of month ({fmtDeadline(endOfMonth())})
-                                  </div>
-                                  <div onClick={() => setDeadlineFor(w, endOfYear())}>
-                                    End of year ({fmtDeadline(endOfYear())})
-                                  </div>
+                                  {DL_PRESETS.map((p) => (
+                                    <div key={p.mode} onClick={() => setDeadlineFor(w, p.ts())}>
+                                      {p.label} ({fmtDeadline(p.ts())})
+                                    </div>
+                                  ))}
                                   <div className="dlDateRow">
                                     {"Pick date: "}
                                     <input
@@ -2198,7 +2202,7 @@ function App() {
             onDelete={(id) => deleteListItem("shopping", id)}
             actions={
               <>
-                <button className="btnGrad" onClick={shareShopping} title="Send unchecked items via Messages">
+                <button className="btnGrad" onClick={() => shareOpen(shopping)} title="Send unchecked items via Messages">
                   Text List
                 </button>
                 <button className="btnGrad" onClick={() => clearCheckedList("shopping")}>
@@ -2220,7 +2224,7 @@ function App() {
             onDelete={(id) => deleteListItem("todays", id)}
             actions={
               <>
-                <button className="btnGrad" onClick={shareTodays} title="Send unchecked items via Messages">
+                <button className="btnGrad" onClick={() => shareOpen(todays)} title="Send unchecked items via Messages">
                   Text List
                 </button>
                 <button className="btnGrad" onClick={() => clearCheckedList("todays")}>
@@ -2255,7 +2259,7 @@ function App() {
             onDelete={(id) => deleteListItem("capture", id)}
             actions={
               <>
-                <button className="btnGrad" onClick={shareCapture} title="Send unchecked items via Messages">
+                <button className="btnGrad" onClick={() => shareOpen(capture)} title="Send unchecked items via Messages">
                   Text List
                 </button>
                 <button className="btnGrad" onClick={() => clearCheckedList("capture")}>
@@ -2326,13 +2330,7 @@ function App() {
           <div className="pmSub">
             {closedWOs.length}
             {" closed work order(s) "}
-            <button
-              className="btnGrad"
-              onClick={() => {
-                pull();
-                flash("Refreshed at " + fmtShort(Date.now()));
-              }}
-            >
+            <button className="btnGrad" onClick={refreshNow}>
               Refresh
             </button>
           </div>
@@ -2503,7 +2501,7 @@ function SettingsModal({ cfg, onClose, onSave, onReset, onChangelog, onDeleteAll
           </button>
           <button
             className="btnGrad"
-            onClick={() => onSave({ userName: form.userName.trim() || "Me", sbUrl: form.sbUrl.trim(), sbKey: form.sbKey.trim() })}
+            onClick={() => onSave({ ...cfg, userName: form.userName.trim() || "Me", sbUrl: form.sbUrl.trim(), sbKey: form.sbKey.trim() })}
           >
             Save
           </button>
@@ -2556,7 +2554,6 @@ function SettingsModal({ cfg, onClose, onSave, onReset, onChangelog, onDeleteAll
 /* ---------- work order detail ---------- */
 function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash }) {
   const [tab, setTab] = useState("Entry Editor");
-  const [dtChoice, setDtChoice] = useState("");
   const [comment, setComment] = useState("");
   const [pendStatus, setPendStatus] = useState(wo.status);
   const [showStatus, setShowStatus] = useState(false);
@@ -2567,7 +2564,6 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
     wo.deadline != null ? { mode: "date", date: tsToDateInput(wo.deadline) } : { mode: "none", date: "" }
   );
   const [partReq, setPartReq] = useState({ name: "", qty: 1, source: "" });
-  const isDown = wo.status === "OOC" || wo.status === "UTP";
 
   const ribbon = [
     { label: "Edit Details", ic: "✎" },
@@ -2579,7 +2575,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
       label: "Close Entry",
       ic: "✔",
       act: () => {
-        onUpdate({ status: "Closed", flow: "Closed" });
+        onUpdate({ status: "Closed" });
         flash(`Entry #${wo.id} closed.`);
         onBack();
       },
@@ -2703,9 +2699,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
           <button
             className="btnGrad"
             onClick={() => {
-              const patch = { status: pendStatus };
-              if (pendStatus === "Closed") patch.flow = "Closed";
-              onUpdate(patch);
+              onUpdate({ status: pendStatus });
               setShowStatus(false);
               flash(`Status → ${pendStatus}`);
             }}
@@ -2784,33 +2778,6 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
           >
             Submit Request
           </button>
-        </div>
-      )}
-
-      {isDown && !dtChoice && (
-        <div className="downtime">
-          <div className="dtQ">
-            <b>
-              {wo.entity || "This item"} is down ({wo.status}).
-            </b>
-            <br />
-            Would you like to associate this Work Order to the current downtime?
-          </div>
-          <div className="dtBtns">
-            <button
-              className="dtYes"
-              onClick={() => {
-                setDtChoice("yes");
-                flash("Associated to current downtime.");
-              }}
-            >
-              {"✔"} Yes {"▾"}
-            </button>
-            <button onClick={() => setDtChoice("future")}>{"\u{1F550}"} No - Future downtime</button>
-            <button className="dtNoReq" onClick={() => setDtChoice("none")}>
-              {"✖"} No - Downtime not required
-            </button>
-          </div>
         </div>
       )}
 
