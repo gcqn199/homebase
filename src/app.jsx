@@ -1235,14 +1235,8 @@ function App() {
     setGearMenu(null);
   };
 
-  /* View mode — per-device (homebase.cfg.v1), independent of the Owner toggle.
-     Simple = lists + Notes only (Jessamine's default view); Full = everything. */
-  const simple = (cfg.viewMode || "full") === "simple";
-  const setViewMode = (m) => {
-    const c = { ...cfg, viewMode: m };
-    setCfg(c);
-    saveCfg(c);
-  };
+  /* View mode is tied to Owner — Cole = Full, Jessamine = Simple (lists + Notes only). */
+  const simple = me === "Jessamine";
   const scrollToSect = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
   const dotColor = { local: "#8a99a8", syncing: "#e8b90c", synced: "#2fa14a", offline: "#c0271a" }[sync.s];
@@ -1339,19 +1333,6 @@ function App() {
                 {n}
               </button>
             ))}
-            <span className="viewBtns">
-              <b>View:</b>
-              {["full", "simple"].map((m) => (
-                <button
-                  key={m}
-                  className={"ownBtn" + ((cfg.viewMode || "full") === m ? " ownOn" : "")}
-                  onClick={() => setViewMode(m)}
-                  title={m === "simple" ? "Lists + Notes only" : "Everything"}
-                >
-                  {m === "full" ? "Full" : "Simple"}
-                </button>
-              ))}
-            </span>
             <span className="ownHint">updates, comments & closures log as: {me}</span>
           </div>
 
@@ -1893,6 +1874,12 @@ function App() {
             <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               to the top {"▲"}
             </a>
+          </div>
+          <div className="pmSub">
+            {"Schedules as of " + fmtDT(Date.now()) + " "}
+            <button className="btnGrad" onClick={() => flash("PM schedules refreshed.")}>
+              Refresh
+            </button>
           </div>
           <div className="tableWrap">
             <table className="grid pmGrid">
@@ -2646,7 +2633,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
         <a onClick={onBack}>{"←"} Main</a>
         {"  /  "}
         <b>
-          {wo.entity ? wo.entity + " - " : ""}D1H Homebase - Edit Work Order #{wo.id}
+          {wo.entity ? wo.entity + " - " : ""}Edit Work Order #{wo.id}
         </b>
       </div>
       <div className="detailTabs">
@@ -2818,14 +2805,6 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
               <td>{wo.desc}</td>
             </tr>
             <tr>
-              <td>Root Cause:</td>
-              <td>{wo.rootCause}</td>
-            </tr>
-            <tr>
-              <td>Preventable Actions:</td>
-              <td>{wo.preventable}</td>
-            </tr>
-            <tr>
               <td>Entry Status:</td>
               <td>{wo.status}</td>
             </tr>
@@ -2898,16 +2877,6 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
             </tr>
           </tbody>
         </table>
-      </div>
-
-      <div className="edTitle">Additional Contacts</div>
-      <div className="edBlock">
-        {wo.contacts.map((c) => (
-          <div key={c} className="ctRow">
-            {"• "}
-            <a>{c}</a>
-          </div>
-        ))}
       </div>
 
       <div className="edTitle" id="gpSection">Gameplan</div>
