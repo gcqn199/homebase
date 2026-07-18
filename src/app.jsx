@@ -16,6 +16,13 @@ const LS_CFG = "homebase.cfg.v1";
    existed are summarized in the last entry. */
 const CHANGELOG = [
   {
+    v: 17,
+    date: "7/18/2026",
+    notes: [
+      "Added Settings → “Delete all data…” — permanently clears every work order (including the archive), all supplies, and all PM schedules on every synced phone, with a second-step confirmation. Notes, household lists, and settings are kept.",
+    ],
+  },
+  {
     v: 15,
     date: "7/18/2026",
     notes: [
@@ -1312,6 +1319,12 @@ function App() {
             setShowSettings(false);
             setView({ page: "changelog" });
           }}
+          onDeleteAll={() => {
+            mutate((s) => ({ ...s, workOrders: [], timePMs: [], usagePMs: [], parts: [] }));
+            setShowSettings(false);
+            setView({ page: "passdown" });
+            flash("All work orders, supplies, and PM schedules deleted.");
+          }}
         />
       )}
 
@@ -2440,9 +2453,10 @@ function App() {
 }
 
 /* ---------- settings modal ---------- */
-function SettingsModal({ cfg, onClose, onSave, onReset, onChangelog }) {
+function SettingsModal({ cfg, onClose, onSave, onReset, onChangelog, onDeleteAll }) {
   const [form, setForm] = useState({ userName: cfg.userName || "", sbUrl: cfg.sbUrl || "", sbKey: cfg.sbKey || "" });
   const [test, setTest] = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
   const testConn = async () => {
     if (!form.sbUrl || !form.sbKey) return setTest("Enter URL and key first.");
     setTest("Testing…");
@@ -2507,7 +2521,33 @@ function SettingsModal({ cfg, onClose, onSave, onReset, onChangelog }) {
           >
             Reset demo data
           </button>
+          <button className="btnDanger" onClick={() => setConfirmDel(true)}>
+            Delete all data…
+          </button>
         </div>
+        {confirmDel && (
+          <div className="dangerConfirm">
+            <div className="dangerConfirmText">
+              This permanently deletes <b>every work order (including the archive), every supply, and every PM
+              schedule</b> — on every synced phone. Notes, household lists, and settings are kept. This cannot be
+              undone.
+            </div>
+            <div className="modalBtns">
+              <button
+                className="btnDanger"
+                onClick={() => {
+                  setConfirmDel(false);
+                  onDeleteAll();
+                }}
+              >
+                Yes, delete everything
+              </button>
+              <button className="btnGrad" onClick={() => setConfirmDel(false)}>
+                Keep my data
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -265,6 +265,9 @@ input.ieInput[type="date"] { width: auto; min-width: 0; }
 .modalHint { color: #555; font-size: 10px; margin: 4px 0 8px; line-height: 1.4; }
 .modalTest { background: #fff; border: 1px solid #c8d0d8; padding: 5px 8px; margin-bottom: 8px; word-break: break-word; }
 .modalBtns { display: flex; gap: 8px; flex-wrap: wrap; }
+.dangerConfirm { background: #fdecea; border: 1px solid #c0392b; padding: 8px; margin-top: 10px; }
+.dangerConfirmText { font-size: 11px; color: #7b1d12; line-height: 1.45; margin-bottom: 8px; }
+.dangerConfirm .btnDanger { margin-left: 0; }
 
 /* mobile */
 @media (max-width: 720px) {
