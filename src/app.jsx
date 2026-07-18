@@ -305,14 +305,14 @@ function seedData() {
     },
   ];
   const timePMs = [
-    { id: 1, tool: "Litterbox", name: "Full litter change (all 3 boxes)", pre: "Yes", due: t - 7 * H, freqH: 168 },
-    { id: 2, tool: "Kitchen", name: "Meal prep — workday lunches", pre: "Yes", due: t + 60 * H, freqH: 168 },
-    { id: 3, tool: "Cats", name: "Flea/tick meds — Matcha, Java, Chai", pre: "", due: t + 200 * H, freqH: 720 },
-    { id: 4, tool: "Cats", name: "Litter + cat food restock check", pre: "", due: t + 90 * H, freqH: 336 },
-    { id: 5, tool: "Ebikes", name: "Battery health check + charge to 80%", pre: "", due: t + 120 * H, freqH: 720 },
-    { id: 6, tool: "Dryer", name: "Lint trap + vent deep clean", pre: "", due: t - 100 * H, freqH: 720 },
-    { id: 7, tool: "Apartment", name: "Smoke detector test", pre: "Yes", due: t + 900 * H, freqH: 4380 },
-    { id: 8, tool: "Fridge", name: "Water filter replacement", pre: "", due: t + 1400 * H, freqH: 4380 },
+    { id: 1, tool: "Litterbox", name: "Full litter change (all 3 boxes)", due: t - 7 * H, freqH: 168 },
+    { id: 2, tool: "Kitchen", name: "Meal prep — workday lunches", due: t + 60 * H, freqH: 168 },
+    { id: 3, tool: "Cats", name: "Flea/tick meds — Matcha, Java, Chai", due: t + 200 * H, freqH: 720 },
+    { id: 4, tool: "Cats", name: "Litter + cat food restock check", due: t + 90 * H, freqH: 336 },
+    { id: 5, tool: "Ebikes", name: "Battery health check + charge to 80%", due: t + 120 * H, freqH: 720 },
+    { id: 6, tool: "Dryer", name: "Lint trap + vent deep clean", due: t - 100 * H, freqH: 720 },
+    { id: 7, tool: "Apartment", name: "Smoke detector test", due: t + 900 * H, freqH: 4380 },
+    { id: 8, tool: "Fridge", name: "Water filter replacement", due: t + 1400 * H, freqH: 4380 },
   ];
   const usagePMs = [
     { id: 1, tool: "Mazda CX-5", name: "Oil change (since last)", count: 3850, limit: 5e3, due: 4500, unit: "mi" },
@@ -768,7 +768,10 @@ function App() {
           (w.entity || "").toLowerCase().includes(q) ||
           w.desc.toLowerCase().includes(q) ||
           String(w.id).includes(q) ||
-          (w.system || "").toLowerCase().includes(q)
+          (w.system || "").toLowerCase().includes(q) ||
+          (w.comment || "").toLowerCase().includes(q) ||
+          (w.assigned || "").toLowerCase().includes(q) ||
+          (w.log || []).some((entry) => (entry.text || "").toLowerCase().includes(q))
       );
     return list;
   }, [workOrders, query, sysFilter, assFilter]);
@@ -1476,7 +1479,7 @@ function App() {
                     <input
                       className="searchBox"
                       value={query}
-                      placeholder="CATEGORY"
+                      placeholder="Search"
                       onChange={(e) => setQuery(e.target.value)}
                     />
                   </th>
@@ -1490,7 +1493,8 @@ function App() {
               </thead>
               <tbody>
                 {PRIORITIES.map((p) => {
-                  const rows = filtered.filter((w) => w.priority === p.id && w.status !== "Closed");
+                  const searching = query.trim().length > 0;
+                  const rows = filtered.filter((w) => w.priority === p.id && (searching || w.status !== "Closed"));
                   const isCollapsed = collapsed[p.id];
                   return (
                     <React.Fragment key={p.id}>
@@ -1730,7 +1734,6 @@ function App() {
                   <th style={{ width: 110 }}>Item {"⇅"}</th>
                   <th>PM Name {"⇅"}</th>
                   <th style={{ width: 120 }}>PM Status {"⇅"}</th>
-                  <th style={{ width: 66 }}>Pre PM</th>
                   <th style={{ width: 120 }} className="thHi">Hours Until Overdue {"↓"}</th>
                   <th style={{ width: 100 }}>Hours Until Due</th>
                   <th style={{ width: 110 }}>Due Date {"⇅"}</th>
@@ -1780,7 +1783,6 @@ function App() {
                         <td>
                           <PMStatusBadge status={status} />
                         </td>
-                        <td>{pm.pre}</td>
                         <td className="numCell hiCol">
                           <InlineEdit
                             type="number"
@@ -2494,6 +2496,58 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
   };
   const removeGameplan = (idx) => onUpdate({ gameplan: wo.gameplan.filter((_, i) => i !== idx) });
 
+  /* gameplan drag-to-reorder */
+  const [gpDragIdx, setGpDragIdx] = useState(null);
+  const [gpDragOverIdx, setGpDragOverIdx] = useState(null);
+  const onGpDragStart = (e, idx) => {
+    setGpDragIdx(idx);
+    e.dataTransfer.effectAllowed = "move";
+    try {
+      e.dataTransfer.setData("text/plain", String(idx));
+    } catch {}
+  };
+  const clearGpDrag = () => {
+    setGpDragIdx(null);
+    setGpDragOverIdx(null);
+  };
+  const moveGameplan = (fromIdx, toIdx) => {
+    if (fromIdx === toIdx) return;
+    const list = [...wo.gameplan];
+    const [moved] = list.splice(fromIdx, 1);
+    const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
+    list.splice(insertAt, 0, moved);
+    onUpdate({ gameplan: list });
+  };
+  const onGpDrop = (e, idx) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const from = gpDragIdx ?? Number(e.dataTransfer.getData("text/plain"));
+    if (from == null || Number.isNaN(from)) return clearGpDrag();
+    moveGameplan(from, idx);
+    clearGpDrag();
+  };
+
+  /* gameplan inline editing */
+  const [gpEditIdx, setGpEditIdx] = useState(null);
+  const [gpEditText, setGpEditText] = useState("");
+  const startGpEdit = (idx, text) => {
+    setGpEditIdx(idx);
+    setGpEditText(text);
+  };
+  const saveGpEdit = () => {
+    const t = gpEditText.trim();
+    if (t) {
+      const gp = wo.gameplan.map((g, i) => (i === gpEditIdx ? { ...g, text: t } : g));
+      onUpdate({ gameplan: gp });
+    }
+    setGpEditIdx(null);
+    setGpEditText("");
+  };
+  const cancelGpEdit = () => {
+    setGpEditIdx(null);
+    setGpEditText("");
+  };
+
   return (
     <div className="page">
       <div className="crumbLine">
@@ -2770,13 +2824,47 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
         {wo.gameplan.filter((g) => !g.done).length === 0 && <div className="muted">No active gameplan items</div>}
         {wo.gameplan.map((g, i) =>
           g.done ? null : (
-            <div key={i} className="gpItem">
-              {"▪ "}
+            <div
+              key={i}
+              className={
+                "gpItem" +
+                (gpDragIdx === i ? " dragSrc" : "") +
+                (gpDragOverIdx === i && gpDragIdx !== i ? " dragOver" : "")
+              }
+              draggable
+              onDragStart={(e) => onGpDragStart(e, i)}
+              onDragEnd={clearGpDrag}
+              onDragOver={(e) => {
+                e.preventDefault();
+                gpDragOverIdx !== i && setGpDragOverIdx(i);
+              }}
+              onDragLeave={() => setGpDragOverIdx((cur) => (cur === i ? null : cur))}
+              onDrop={(e) => onGpDrop(e, i)}
+            >
+              <span className="dragHandle" title="Drag to reorder">
+                {"⠿"}
+              </span>{" "}
               {i + 1}
               {") "}
               <input type="checkbox" checked={false} onChange={() => toggleGameplan(i)} />
               {" "}
-              {g.text}
+              {gpEditIdx === i ? (
+                <input
+                  className="gpEditBox"
+                  autoFocus
+                  value={gpEditText}
+                  onChange={(e) => setGpEditText(e.target.value)}
+                  onBlur={saveGpEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveGpEdit();
+                    if (e.key === "Escape") cancelGpEdit();
+                  }}
+                />
+              ) : (
+                <span className="gpText" title="Click to edit" onClick={() => startGpEdit(i, g.text)}>
+                  {g.text}
+                </span>
+              )}
               {" "}
               <a className="gpDel" title="Remove step" onClick={() => removeGameplan(i)}>
                 {"✕"}
@@ -2808,7 +2896,23 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
               {") "}
               <input type="checkbox" checked={true} onChange={() => toggleGameplan(i)} />
               {" "}
-              <s>{g.text}</s>
+              {gpEditIdx === i ? (
+                <input
+                  className="gpEditBox"
+                  autoFocus
+                  value={gpEditText}
+                  onChange={(e) => setGpEditText(e.target.value)}
+                  onBlur={saveGpEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveGpEdit();
+                    if (e.key === "Escape") cancelGpEdit();
+                  }}
+                />
+              ) : (
+                <s className="gpText" title="Click to edit" onClick={() => startGpEdit(i, g.text)}>
+                  {g.text}
+                </s>
+              )}
               {" "}
               <span className="gpBy">(by {g.by})</span>
               {" "}

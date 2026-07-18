@@ -231,8 +231,13 @@ input.ieInput[type="date"] { width: auto; min-width: 0; }
 .ctRow { padding: 2px 0; }
 .gpHead { font-weight: 700; text-decoration: underline; }
 .gpItem { padding: 4px 0; }
+.gpItem.dragSrc { opacity: .4; }
+.gpItem.dragOver { outline: 2px dashed #4f7fbf; outline-offset: -2px; background: #eaf1fa; }
 .gpDone { color: #555; }
 .gpBy { color: #888; font-size: 10px; }
+.gpText { cursor: text; }
+.gpText:hover { background: #fff6e0; }
+.gpEditBox { font-size: 14px; padding: 1px 4px; border: 1px solid #8a99a8; }
 .muted { color: #888; font-style: italic; padding: 2px 0; }
 
 .logRow { padding: 4px 0; border-bottom: 1px dotted #d8dee4; }
