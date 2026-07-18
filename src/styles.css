@@ -126,14 +126,18 @@ body { margin: 0; background: #cfd6dd; }
 .chkState { color: #555; font-size: 10px; }
 .updTime { color: #444; }
 
-/* PM sections */
+/* PM sections — one uniform header style for every section band */
 .pmHeader {
-  background: linear-gradient(#d7dde3, #b9c2cb);
-  border: 1px solid #8a99a8; border-bottom: none;
-  padding: 5px 8px; display: flex; align-items: center;
-  letter-spacing: 1px; font-weight: 700; color: #24313f;
+  background: linear-gradient(#5f7286, #3f4f61);
+  border: 1px solid #37475a; border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  padding: 5px 10px; display: flex; align-items: center;
+  font-weight: 700; color: #fff;
 }
-.pmHeaderTitle { font-size: 11px; }
+.pmHeaderTitle { font-size: 11px; letter-spacing: .6px; }
+.toTop { margin-left: auto; font-size: 10px; white-space: nowrap; }
+.pmHeader a.toTop { color: #d9e2ec; }
+.pmHeader a.toTop:hover { color: #fff; }
 .toTop { margin-left: auto; font-size: 10px; white-space: nowrap; }
 .pmSub { background: #eef1f4; border: 1px solid #8a99a8; border-bottom: none; padding: 4px 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pmGrid th.thHi { background: linear-gradient(#4f7fbf, #2f5a94); }
@@ -378,7 +382,7 @@ input.ieInput[type="date"] { width: auto; min-width: 0; }
 .asgnChip.asgn-unassigned { background: #f2f2f2; color: #8a99a8; border-color: #b4bcc4; text-decoration: underline dashed; }
 .dtlAssignSel { font-size: 16px; padding: 1px 2px; border: 1px solid #8a99a8; }
 
-/* V1 version chip in header */
+/* version chip in header — click opens What's New */
 .verChip {
   background: #ffd75e;
   color: #5a3d00;
@@ -389,7 +393,22 @@ input.ieInput[type="date"] { width: auto; min-width: 0; }
   margin-left: 6px;
   vertical-align: middle;
   border: 1px solid #c9a227;
+  cursor: pointer;
 }
+.verChip:hover { background: #ffe083; }
+
+/* refresh icon in the top chrome bar */
+.refreshTop { cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1; }
+.refreshTop:active { transform: rotate(60deg); display: inline-block; }
+
+/* What's New / changelog page */
+.changelogList { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.chEntry { background: #fff; border: 1px solid #8a99a8; padding: 6px 10px; }
+.chEntryHead { display: flex; align-items: baseline; gap: 8px; font-size: 12px; margin-bottom: 3px; }
+.chEntryHead b { color: #24313f; }
+.chEntryDate { color: #6f7b87; font-size: 10px; }
+.chEntry ul { margin: 2px 0 2px 18px; padding: 0; }
+.chEntry li { margin: 2px 0; font-size: 11px; }
 .partOrderBox { margin: 4px 0 8px; }
 
 /* ---- household lists (Shopping / Today's / Quick Capture) ---- */

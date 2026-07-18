@@ -9,6 +9,32 @@ const H = 3600 * 1e3;
 const LS_STATE = "homebase.state.v1";
 const LS_CFG = "homebase.cfg.v1";
 
+/* ---------- changelog ----------
+   One entry per shipped build. Add a new entry at the top each time you ship
+   (the version number should match the "V" the next build.mjs run will bump
+   sw.js/index.html to — see build.mjs). Older builds shipped before this log
+   existed are summarized in the last entry. */
+const CHANGELOG = [
+  {
+    v: 15,
+    date: "7/18/2026",
+    notes: [
+      "Renamed “System” to “Category” everywhere (filters, ribbon action, work order detail, row menus).",
+      "Renamed “Daily Checklist” to “Notes.”",
+      "Fixed the version chip in the header — it now shows the real build number instead of always reading V1.",
+      "Added a Refresh button to the top header bar.",
+      "Added this What's New page — tap the version chip or use Settings → What's New.",
+      "Added a Text List button to Part Orders, Today's List, and Quick Capture (Shopping List already had one).",
+      "Restyled section headers to be sleeker and more consistent; shortened the work order board header to just “WOPr.”",
+    ],
+  },
+  {
+    v: 14,
+    date: "",
+    notes: ["Earlier releases — detailed changelog tracking starts with V15."],
+  },
+];
+
 /* ---------- date helpers ---------- */
 function fmtDT(ts) {
   const d = new Date(ts),
@@ -520,7 +546,7 @@ function DeadlineCalendar({ workOrders, onOpen, onRefresh }) {
   return (
     <>
       <div className="pmHeader">
-        <span className="pmHeaderTitle">{"□  D e a d l i n e  C a l e n d a r"}</span>
+        <span className="pmHeaderTitle">{"□ Deadline Calendar"}</span>
         <span className="calNav">
           <button className="btnGrad btnSm" onClick={() => shift(-1)} title="Previous month">{"‹"}</button>
           <b className="calMonthLb">{MONTHS[cal.m]} {cal.y}</b>
@@ -1146,11 +1172,10 @@ function App() {
     flash("Checked items cleared.");
   };
 
-  /* "Text List" — unchecked shopping items via the iOS share sheet (Messages etc.);
-     clipboard fallback where Web Share isn't available. */
-  const shareShopping = async () => {
-    const lines = shopping.filter((i) => !i.done).map((i) => "• " + i.text).join("\n");
-    if (!lines) return flash("Nothing unchecked to send.");
+  /* "Text List" — send a section's open items via the iOS share sheet (Messages etc.);
+     clipboard fallback where Web Share isn't available. Reused by every list-style section. */
+  const shareLines = async (lines) => {
+    if (!lines) return flash("Nothing to send.");
     if (navigator.share) {
       try {
         await navigator.share({ text: lines });
@@ -1164,6 +1189,16 @@ function App() {
       }
     } else flash("Sharing not supported on this device.");
   };
+  const shareShopping = () => shareLines(shopping.filter((i) => !i.done).map((i) => "• " + i.text).join("\n"));
+  const shareTodays = () => shareLines(todays.filter((i) => !i.done).map((i) => "• " + i.text).join("\n"));
+  const shareCapture = () => shareLines(capture.filter((i) => !i.done).map((i) => "• " + i.text).join("\n"));
+  const sharePartOrders = () =>
+    shareLines(
+      parts
+        .filter((p) => p.status !== "Put Away")
+        .map((p) => `• ${p.part}${p.tool && p.tool !== "—" ? ` (${p.tool})` : ""} — ${p.status}`)
+        .join("\n")
+    );
 
   /* Today's List morning prompt: if the list has items but wasn't touched today, ask. */
   const todayStr = tsToDateInput(Date.now());
@@ -1201,7 +1236,7 @@ function App() {
   };
 
   /* View mode — per-device (homebase.cfg.v1), independent of the Owner toggle.
-     Simple = lists + Daily Checklist only (Jessamine's default view); Full = everything. */
+     Simple = lists + Notes only (Jessamine's default view); Full = everything. */
   const simple = (cfg.viewMode || "full") === "simple";
   const setViewMode = (m) => {
     const c = { ...cfg, viewMode: m };
@@ -1228,9 +1263,25 @@ function App() {
           <span className={view.page === "passdown" ? "on" : ""} onClick={() => setView({ page: "passdown" })}>
             Main
           </span>
-          <span className="verChip" title="Homebase version">V1</span>
+          <span
+            className="verChip"
+            title="View what's new"
+            onClick={() => setView({ page: "changelog" })}
+          >
+            {typeof window !== "undefined" && window.HOMEBASE_VERSION ? window.HOMEBASE_VERSION : "V?"}
+          </span>
         </nav>
         <span className="chromeRight">
+          <span
+            className="refreshTop"
+            onClick={() => {
+              pull();
+              flash("Refreshed at " + fmtShort(Date.now()));
+            }}
+            title="Refresh"
+          >
+            {"⟳"}
+          </span>
           <span className="syncChip" onClick={pull} title="Tap to sync now">
             <span className="syncDot" style={{ background: dotColor }} /> {syncLabel}
           </span>
@@ -1263,6 +1314,10 @@ function App() {
             setShowSettings(false);
             flash("Local data reset to demo seed.");
           }}
+          onChangelog={() => {
+            setShowSettings(false);
+            setView({ page: "changelog" });
+          }}
         />
       )}
 
@@ -1291,7 +1346,7 @@ function App() {
                   key={m}
                   className={"ownBtn" + ((cfg.viewMode || "full") === m ? " ownOn" : "")}
                   onClick={() => setViewMode(m)}
-                  title={m === "simple" ? "Lists + Daily Checklist only" : "Everything"}
+                  title={m === "simple" ? "Lists + Notes only" : "Everything"}
                 >
                   {m === "full" ? "Full" : "Simple"}
                 </button>
@@ -1326,9 +1381,7 @@ function App() {
           />
 
           <div className="pmHeader">
-            <span className="pmHeaderTitle">
-              {"□  W O R K O R D E R  P R I O R I T I Z A T I O N  -  W O P r"}
-            </span>
+            <span className="pmHeaderTitle">{"□ WOPr"}</span>
           </div>
           <div className="pmSub woprSub">
             <button
@@ -1352,7 +1405,7 @@ function App() {
               Bulk Update
             </label>
             <label className="chk sysFilter">
-              System
+              Category
               <select value={sysFilter} onChange={(e) => setSysFilter(e.target.value)}>
                 <SystemOptions noneLabel="All" />
               </select>
@@ -1411,7 +1464,7 @@ function App() {
                   />
                 </label>
                 <label>
-                  System
+                  Category
                   <select value={form.system} onChange={(e) => setForm({ ...form, system: e.target.value })}>
                     <SystemOptions />
                   </select>
@@ -1558,7 +1611,7 @@ function App() {
                                 ) : (
                                   <a
                                     className="sysNone"
-                                    title="Tag a household system"
+                                    title="Tag a category"
                                     onClick={() =>
                                       setRowMenu(
                                         rowMenu?.type === "system" && rowMenu.id === w.id
@@ -1567,12 +1620,12 @@ function App() {
                                       )
                                     }
                                   >
-                                    +SYS
+                                    +CAT
                                   </a>
                                 )}
                                 {rowMenu?.type === "system" && rowMenu.id === w.id && (
                                   <div className="gearMenu sysMenu">
-                                    <b>System:</b>
+                                    <b>Category:</b>
                                     <select
                                       value={w.system || ""}
                                       onClick={(e) => e.stopPropagation()}
@@ -1713,9 +1766,7 @@ function App() {
 
           {/* ---- OnDeck PMs (time based) ---- */}
           <div className="pmHeader">
-            <span className="pmHeaderTitle">
-              {"□  T i m e  B a s e d  P M s"}
-            </span>
+            <span className="pmHeaderTitle">{"□ Time Based PMs"}</span>
             <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               to the top {"▲"}
             </a>
@@ -1838,9 +1889,7 @@ function App() {
 
           {/* ---- OnDeck usage based PMs ---- */}
           <div className="pmHeader">
-            <span className="pmHeaderTitle">
-              {"□  U s a g e  B a s e d  P M s"}
-            </span>
+            <span className="pmHeaderTitle">{"□ Usage Based PMs"}</span>
             <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               to the top {"▲"}
             </a>
@@ -1967,9 +2016,7 @@ function App() {
           </div>
 
           <div className="pmHeader">
-            <span className="pmHeaderTitle">
-              {"□  P a r t  O r d e r s"}
-            </span>
+            <span className="pmHeaderTitle">{"□ Part Orders"}</span>
             <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               to the top {"▲"}
             </a>
@@ -1979,6 +2026,9 @@ function App() {
             {" open supply request(s) "}
             <button className="btnGrad" onClick={() => setShowPartOrder((v) => !v)}>
               Order Supplies
+            </button>
+            <button className="btnGrad" onClick={sharePartOrders} title="Send open supply requests via Messages">
+              Text List
             </button>
           </div>
           {showPartOrder && (
@@ -2138,7 +2188,7 @@ function App() {
 
           <HouseListSection
             anchorId="sectShop"
-            title={"□  S h o p p i n g  L i s t"}
+            title={"□ Shopping List"}
             items={shopping}
             variant="strike"
             placeholder="Add item… (tap the mic on your keyboard to dictate)"
@@ -2160,7 +2210,7 @@ function App() {
 
           <HouseListSection
             anchorId="sectToday"
-            title={"□  T o d a y ' s  L i s t"}
+            title={"□ Today's List"}
             items={todays}
             variant="check"
             placeholder="Add a stop or errand for today…"
@@ -2169,9 +2219,14 @@ function App() {
             onToggle={(id) => toggleListItem("todays", id)}
             onDelete={(id) => deleteListItem("todays", id)}
             actions={
-              <button className="btnGrad" onClick={() => clearCheckedList("todays")}>
-                Clear Checked
-              </button>
+              <>
+                <button className="btnGrad" onClick={shareTodays} title="Send unchecked items via Messages">
+                  Text List
+                </button>
+                <button className="btnGrad" onClick={() => clearCheckedList("todays")}>
+                  Clear Checked
+                </button>
+              </>
             }
             banner={
               todaysStale ? (
@@ -2190,7 +2245,7 @@ function App() {
 
           <HouseListSection
             anchorId="sectCapture"
-            title={"□  Q u i c k  C a p t u r e"}
+            title={"□ Quick Capture"}
             items={capture}
             variant="check"
             placeholder="Type it before you forget…"
@@ -2199,9 +2254,14 @@ function App() {
             onToggle={(id) => toggleListItem("capture", id)}
             onDelete={(id) => deleteListItem("capture", id)}
             actions={
-              <button className="btnGrad" onClick={() => clearCheckedList("capture")}>
-                Clear Checked
-              </button>
+              <>
+                <button className="btnGrad" onClick={shareCapture} title="Send unchecked items via Messages">
+                  Text List
+                </button>
+                <button className="btnGrad" onClick={() => clearCheckedList("capture")}>
+                  Clear Checked
+                </button>
+              </>
             }
             extraCol={!simple}
             rowExtra={(it) => (
@@ -2226,7 +2286,7 @@ function App() {
           />
 
           <div className="pmHeader">
-            <span className="pmHeaderTitle">{"□  D a i l y  C h e c k l i s t"}</span>
+            <span className="pmHeaderTitle">{"□ Notes"}</span>
             <a className="toTop" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               to the top {"▲"}
             </a>
@@ -2261,7 +2321,7 @@ function App() {
             <b>WOPr - Archive</b>
           </div>
           <div className="pmHeader">
-            <span className="pmHeaderTitle">{"\u25a1  W O P r  -  A r c h i v e"}</span>
+            <span className="pmHeaderTitle">{"□ WOPr - Archive"}</span>
           </div>
           <div className="pmSub">
             {closedWOs.length}
@@ -2337,6 +2397,35 @@ function App() {
         </div>
       )}
 
+      {view.page === "changelog" && (
+        <div className="page">
+          <div className="crumbLine">
+            <a onClick={() => setView({ page: "passdown" })}>{"←"} Main</a>
+            {"  /  "}
+            <b>What's New</b>
+          </div>
+          <div className="pmHeader">
+            <span className="pmHeaderTitle">{"What's New"}</span>
+          </div>
+          <div className="pmSub">Homebase version history {"—"} newest first.</div>
+          <div className="changelogList">
+            {CHANGELOG.map((c) => (
+              <div key={c.v} className="chEntry">
+                <div className="chEntryHead">
+                  <b>V{c.v}</b>
+                  {c.date ? <span className="chEntryDate">{c.date}</span> : null}
+                </div>
+                <ul>
+                  {c.notes.map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {view.page === "detail" && detailWO && (
         <DetailPage
           wo={detailWO}
@@ -2364,7 +2453,7 @@ function App() {
 }
 
 /* ---------- settings modal ---------- */
-function SettingsModal({ cfg, onClose, onSave, onReset }) {
+function SettingsModal({ cfg, onClose, onSave, onReset, onChangelog }) {
   const [form, setForm] = useState({ userName: cfg.userName || "", sbUrl: cfg.sbUrl || "", sbKey: cfg.sbKey || "" });
   const [test, setTest] = useState("");
   const testConn = async () => {
@@ -2420,6 +2509,9 @@ function SettingsModal({ cfg, onClose, onSave, onReset }) {
           <button className="btnGrad" onClick={onClose}>
             Cancel
           </button>
+          <button className="btnGrad" onClick={onChangelog}>
+            What's New
+          </button>
           <button
             className="btnDanger"
             onClick={() => {
@@ -2455,7 +2547,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
     { label: "Duplicate", ic: "⧉", act: () => onDuplicate && onDuplicate() },
     { label: "Change Status", ic: "⇄", act: () => setShowStatus((v) => !v) },
     { label: "Set Deadline", ic: "\u{1F4C5}", act: () => setShowDeadline((v) => !v) },
-    { label: "Set System", ic: "\u{1F3E0}", act: () => setShowSystem((v) => !v) },
+    { label: "Set Category", ic: "\u{1F3E0}", act: () => setShowSystem((v) => !v) },
     {
       label: "Close Entry",
       ic: "✔",
@@ -2616,14 +2708,14 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
 
       {showSystem && (
         <div className="statusPicker">
-          {"Set household system: "}
+          {"Set category: "}
           <select
             value={wo.system || ""}
             onChange={(e) => {
               const code = e.target.value || null;
               onUpdate({ system: code });
               setShowSystem(false);
-              flash(code == null ? "System cleared." : `System → ${code}`);
+              flash(code == null ? "Category cleared." : `Category → ${code}`);
             }}
           >
             <SystemOptions />
@@ -2742,7 +2834,7 @@ function DetailPage({ wo, me, onBack, onUpdate, onAddPart, onDuplicate, flash })
               <td>{wo.priority}</td>
             </tr>
             <tr>
-              <td>System:</td>
+              <td>Category:</td>
               <td>
                 {wo.system ? (
                   <>

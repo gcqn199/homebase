@@ -27,6 +27,12 @@ const css = readFileSync("src/styles.css", "utf-8");
 const js = readFileSync(BUNDLE, "utf-8");
 rmSync(BUNDLE);
 
+// Compute the version number this build will ship as — same number sw.js bumps
+// to below — so the header's version chip and the SW cache name always agree.
+const swSrc = readFileSync("sw.js", "utf-8");
+const curVerMatch = swSrc.match(/homebase-v(\d+)/);
+const nextVer = curVerMatch ? Number(curVerMatch[1]) + 1 : 1;
+
 const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -45,6 +51,7 @@ ${css}</style>
 </head>
 <body>
 <div id="root"></div>
+<script>window.HOMEBASE_VERSION = "V${nextVer}";</script>
 <script>
 ${js}</script>
 <script>
@@ -58,11 +65,10 @@ if ("serviceWorker" in navigator) {
 writeFileSync("index.html", html);
 
 // 3. bump service-worker cache version so phones pick up the new build
-const sw = readFileSync("sw.js", "utf-8");
-const bumped = sw.replace(/homebase-v(\d+)/, (_, n) => `homebase-v${Number(n) + 1}`);
-if (bumped !== sw) writeFileSync("sw.js", bumped);
+const bumped = swSrc.replace(/homebase-v(\d+)/, () => `homebase-v${nextVer}`);
+if (bumped !== swSrc) writeFileSync("sw.js", bumped);
 
 console.log(
   `Built index.html (${(html.length / 1024).toFixed(0)} KB). ` +
-    `sw.js cache: ${bumped.match(/homebase-v\d+/)[0]}. Commit index.html, sw.js, and src/.`
+    `Version: V${nextVer}. sw.js cache: homebase-v${nextVer}. Commit index.html, sw.js, and src/.`
 );
