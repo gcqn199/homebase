@@ -268,6 +268,31 @@ input.ieInput[type="date"] { width: auto; min-width: 0; }
 .dangerConfirm { background: #fdecea; border: 1px solid #c0392b; padding: 8px; margin-top: 10px; }
 .dangerConfirmText { font-size: 11px; color: #7b1d12; line-height: 1.45; margin-bottom: 8px; }
 .dangerConfirm .btnDanger { margin-left: 0; }
+.modalRow { display: flex; gap: 8px; }
+.modalRow .modalField { flex: 1; }
+.gearMenu .gearDel { color: #b3261e; }
+.gearMenu .gearDel:hover { background: #fdecea; }
+
+/* PM checklist step-count chip on PM name cells */
+.chkChip {
+  display: inline-block; margin-left: 6px; padding: 0 5px; cursor: pointer;
+  background: #e3edf7; border: 1px solid #8a99a8; border-radius: 2px;
+  font-size: 10px; font-weight: 700; color: #2c3e50; white-space: nowrap;
+}
+.chkChip:hover { background: #cfe0f2; }
+
+/* Shared steps editor (PM + Adhoc modals) */
+.stepsEditor { background: #fff; border: 1px solid #c8d0d8; padding: 6px; margin-bottom: 8px; }
+.stepRow { display: flex; align-items: center; gap: 6px; padding: 3px 2px; border-bottom: 1px solid #eef1f4; }
+.stepRow:last-of-type { border-bottom: none; }
+.stepNum { color: #888; font-weight: 700; min-width: 20px; }
+.stepText { flex: 1; word-break: break-word; }
+.stepBtns { display: flex; gap: 8px; }
+.stepBtns a { cursor: pointer; color: #46586a; font-size: 12px; }
+.stepBtns a:hover { color: #d94f04; }
+.stepBtns .stepDel:hover { color: #b3261e; }
+.stepAdd { display: flex; gap: 6px; margin-top: 6px; }
+.stepAdd input { flex: 1; font-size: 16px; padding: 5px 6px; border: 1px solid #8a99a8; }
 
 /* mobile */
 @media (max-width: 720px) {

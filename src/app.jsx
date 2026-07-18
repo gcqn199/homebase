@@ -16,6 +16,16 @@ const LS_CFG = "homebase.cfg.v1";
    existed are summarized in the last entry. */
 const CHANGELOG = [
   {
+    v: 20,
+    date: "7/18/2026",
+    notes: [
+      "PM Checklists — you can now add your own PMs. Each OnDeck section (Time Based and Usage Based) has an “+ Add PM” button, and every PM can carry a checklist of steps. Tap a PM's gear to edit its schedule and steps, or to delete it.",
+      "When you make a Work Order from a PM, its checklist steps now drop straight into the work order's Gameplan, ready to tick off.",
+      "New “+ Adhoc PM” button for one-off maintenance — jot the item, name, and a few steps and it creates a Priority 4 work order with those steps, without adding a recurring schedule.",
+      "PMs with steps show a small ☑ count next to their name.",
+    ],
+  },
+  {
     v: 19,
     date: "7/18/2026",
     notes: [
@@ -178,6 +188,13 @@ function migrateState(s) {
   /* Supplies rename: legacy part status "Installed" -> "Put Away" */
   if (Array.isArray(out.parts) && out.parts.some((p) => p && p.status === "Installed")) {
     out = { ...out, parts: out.parts.map((p) => (p && p.status === "Installed" ? { ...p, status: "Put Away" } : p)) };
+  }
+  /* PM Checklists — backfill an empty checklist array on any PM stored before V20 */
+  const needsPmChk = (arr) => Array.isArray(arr) && arr.some((p) => p && !Array.isArray(p.checklist));
+  if (needsPmChk(out.timePMs) || needsPmChk(out.usagePMs)) {
+    const fix = (arr) =>
+      Array.isArray(arr) ? arr.map((p) => (p && !Array.isArray(p.checklist) ? { ...p, checklist: [] } : p)) : arr;
+    out = { ...out, timePMs: fix(out.timePMs), usagePMs: fix(out.usagePMs) };
   }
   /* Household lists (Shopping / Today's / Quick Capture) — backfill empty defaults on older docs */
   if (!Array.isArray(out.shopping) || !Array.isArray(out.todays) || !Array.isArray(out.capture) || typeof out.listSeq !== "number") {
@@ -354,19 +371,19 @@ function seedData() {
     }),
   ];
   const timePMs = [
-    { id: 1, tool: "Litterbox", name: "Full litter change (all 3 boxes)", due: t - 7 * H, freqH: 168 },
-    { id: 2, tool: "Kitchen", name: "Meal prep — workday lunches", due: t + 60 * H, freqH: 168 },
-    { id: 3, tool: "Cats", name: "Flea/tick meds — Matcha, Java, Chai", due: t + 200 * H, freqH: 720 },
-    { id: 4, tool: "Cats", name: "Litter + cat food restock check", due: t + 90 * H, freqH: 336 },
-    { id: 5, tool: "Ebikes", name: "Battery health check + charge to 80%", due: t + 120 * H, freqH: 720 },
-    { id: 6, tool: "Dryer", name: "Lint trap + vent deep clean", due: t - 100 * H, freqH: 720 },
-    { id: 7, tool: "Apartment", name: "Smoke detector test", due: t + 900 * H, freqH: 4380 },
-    { id: 8, tool: "Fridge", name: "Water filter replacement", due: t + 1400 * H, freqH: 4380 },
+    { id: 1, tool: "Litterbox", name: "Full litter change (all 3 boxes)", due: t - 7 * H, freqH: 168, checklist: ["Dump all 3 boxes", "Wash + dry each box", "Add fresh litter (2–3 in)", "Sprinkle deodorizer", "Restock litter if low"] },
+    { id: 2, tool: "Kitchen", name: "Meal prep — workday lunches", due: t + 60 * H, freqH: 168, checklist: [] },
+    { id: 3, tool: "Cats", name: "Flea/tick meds — Matcha, Java, Chai", due: t + 200 * H, freqH: 720, checklist: ["Matcha — apply dose", "Java — apply dose", "Chai — apply dose", "Log date on fridge calendar"] },
+    { id: 4, tool: "Cats", name: "Litter + cat food restock check", due: t + 90 * H, freqH: 336, checklist: [] },
+    { id: 5, tool: "Ebikes", name: "Battery health check + charge to 80%", due: t + 120 * H, freqH: 720, checklist: [] },
+    { id: 6, tool: "Dryer", name: "Lint trap + vent deep clean", due: t - 100 * H, freqH: 720, checklist: ["Clear lint trap", "Vacuum trap housing", "Disconnect + clear vent hose", "Check exterior vent flap", "Reconnect + test run"] },
+    { id: 7, tool: "Apartment", name: "Smoke detector test", due: t + 900 * H, freqH: 4380, checklist: [] },
+    { id: 8, tool: "Fridge", name: "Water filter replacement", due: t + 1400 * H, freqH: 4380, checklist: [] },
   ];
   const usagePMs = [
-    { id: 1, tool: "Mazda CX-5", name: "Oil change (since last)", count: 3850, limit: 5e3, due: 4500, unit: "mi" },
-    { id: 2, tool: "Mazda CX-5", name: "Tire rotation (since last)", count: 3850, limit: 7500, due: 7000, unit: "mi" },
-    { id: 3, tool: "Ebikes", name: "Chain lube interval", count: 140, limit: 200, due: 180, unit: "mi" },
+    { id: 1, tool: "Mazda CX-5", name: "Oil change (since last)", count: 3850, limit: 5e3, due: 4500, unit: "mi", checklist: ["Drain oil + replace filter", "Refill (0W-20, ~4.6 qt)", "Reset oil-life monitor", "Log mileage", "Check tire pressure"] },
+    { id: 2, tool: "Mazda CX-5", name: "Tire rotation (since last)", count: 3850, limit: 7500, due: 7000, unit: "mi", checklist: [] },
+    { id: 3, tool: "Ebikes", name: "Chain lube interval", count: 140, limit: 200, due: 180, unit: "mi", checklist: [] },
   ];
   const parts = [
     { id: ++partSeq, part: "Cat litter 40 lb (unscented clumping)", tool: "Litterbox", wo: 6012252, qty: 2, source: "Chewy", status: "Ordered", eta: t + 72 * H },
@@ -743,6 +760,8 @@ function App() {
   const [rowMenu, setRowMenu] = useState(null); // {type:"status"|"deadline", id}
   const [toast, setToast] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [showPMModal, setShowPMModal] = useState(null); // null | { kind:"time"|"usage", pm:null|existing }
+  const [showAdhoc, setShowAdhoc] = useState(false);
   const [sync, setSync] = useState({ s: cfg.sbUrl && cfg.sbKey ? "syncing" : "local", at: null });
   const pushTimer = useRef(null);
 
@@ -1056,21 +1075,75 @@ function App() {
     flash(`${pm.name} counter reset to 0 ${pm.unit}.`);
   };
 
-  const createWOFromPM = (tool, name) => {
+  const createWOFromPM = (pm) => {
     mutate((s) => {
       const id = s.woSeq + 1;
+      const steps = (pm.checklist || []).map((t) => ({ text: t, done: false, by: "" }));
       const wo = makeWO(id, me, {
-        entity: tool,
+        entity: pm.tool,
         priority: 4,
-        desc: `Execute ${name}`,
+        desc: `Execute ${pm.name}`,
         comment: "Generated from OnDeck PM",
-        checklist: name,
+        checklist: pm.name,
         checklistState: "Not Started",
+        gameplan: steps,
       });
-      flash(`Work Order #${id} created from ${name}.`);
+      flash(
+        steps.length
+          ? `Work Order #${id} created from ${pm.name} — ${steps.length} step(s) added to Gameplan.`
+          : `Work Order #${id} created from ${pm.name}.`
+      );
       return { ...s, woSeq: id, workOrders: [...s.workOrders, wo] };
     });
     setGearMenu(null);
+  };
+
+  /* PM create / edit / delete (recurring PMs). savePM handles both add and edit for
+     time- and usage-based PMs; new ids are max(existing)+1 within that table. */
+  const savePM = (kind, data, existingId) => {
+    mutate((s) => {
+      const key = kind === "time" ? "timePMs" : "usagePMs";
+      const list = s[key] || [];
+      if (existingId != null) {
+        return { ...s, [key]: list.map((p) => (p.id === existingId ? { ...p, ...data } : p)) };
+      }
+      const id = list.reduce((m, p) => Math.max(m, p.id || 0), 0) + 1;
+      return { ...s, [key]: [...list, { id, ...data }] };
+    });
+    setGearMenu(null);
+    flash(existingId != null ? "PM updated." : "PM added.");
+  };
+
+  const deletePM = (kind, id, name) => {
+    if (!confirm(`Delete PM “${name}”? This cannot be undone.`)) return;
+    mutate((s) => {
+      const key = kind === "time" ? "timePMs" : "usagePMs";
+      return { ...s, [key]: (s[key] || []).filter((p) => p.id !== id) };
+    });
+    setGearMenu(null);
+    flash("PM deleted.");
+  };
+
+  /* Adhoc / one-off PM — creates a Priority 4 work order seeded with the given steps,
+     without adding anything to the recurring OnDeck schedules. */
+  const createAdhocPM = ({ tool, name, assigned, steps }) => {
+    mutate((s) => {
+      const id = s.woSeq + 1;
+      const gp = (steps || []).map((t) => ({ text: t, done: false, by: "" }));
+      const wo = makeWO(id, me, {
+        entity: (tool || "").trim(),
+        priority: 4,
+        desc: name.trim(),
+        comment: "One-off PM",
+        checklist: name.trim(),
+        checklistState: "Not Started",
+        assigned: assigned || "Unassigned",
+        gameplan: gp,
+      });
+      flash(`Adhoc PM → Work Order #${id} created${gp.length ? ` with ${gp.length} step(s)` : ""}.`);
+      return { ...s, woSeq: id, workOrders: [wo, ...s.workOrders] };
+    });
+    setShowAdhoc(false);
   };
 
   const stepPart = (id, dir) => {
@@ -1325,6 +1398,20 @@ function App() {
           }}
         />
       )}
+
+      {showPMModal && (
+        <PMModal
+          kind={showPMModal.kind}
+          pm={showPMModal.pm}
+          onClose={() => setShowPMModal(null)}
+          onSave={(data, existingId) => {
+            savePM(showPMModal.kind, data, existingId);
+            setShowPMModal(null);
+          }}
+        />
+      )}
+
+      {showAdhoc && <AdhocPMModal me={me} onClose={() => setShowAdhoc(false)} onCreate={createAdhocPM} />}
 
       {view.page === "passdown" && (
         <div className="page">
@@ -1774,6 +1861,12 @@ function App() {
             <button className="btnGrad" onClick={() => flash("PM schedules refreshed.")}>
               Refresh
             </button>
+            <button className="btnGrad" onClick={() => setShowPMModal({ kind: "time", pm: null })}>
+              {"+ Add PM"}
+            </button>
+            <button className="btnGrad" onClick={() => setShowAdhoc(true)}>
+              {"+ Adhoc PM"}
+            </button>
           </div>
           <div className="tableWrap">
             <table className="grid pmGrid">
@@ -1809,7 +1902,9 @@ function App() {
                           {gearMenu?.type === "t" && gearMenu.id === pm.id && (
                             <div className="gearMenu">
                               <div onClick={() => completeTimePM(pm)}>{"✓ Mark PM complete"}</div>
-                              <div onClick={() => createWOFromPM(pm.tool, pm.name)}>{"+ Create Work Order"}</div>
+                              <div onClick={() => createWOFromPM(pm)}>{"+ Create Work Order"}</div>
+                              <div onClick={() => { setGearMenu(null); setShowPMModal({ kind: "time", pm }); }}>{"✎ Edit PM & checklist"}</div>
+                              <div className="gearDel" onClick={() => deletePM("time", pm.id, pm.name)}>{"🗑 Delete PM"}</div>
                             </div>
                           )}
                         </td>
@@ -1828,6 +1923,15 @@ function App() {
                             onSave={(v) => v.trim() && (updateTimePM(pm.id, { name: v.trim() }), flash("PM name updated."))}
                             title="Tap to edit PM name"
                           />
+                          {pm.checklist && pm.checklist.length > 0 && (
+                            <span
+                              className="chkChip"
+                              title="Checklist steps — tap to edit"
+                              onClick={() => setShowPMModal({ kind: "time", pm })}
+                            >
+                              {"☑ " + pm.checklist.length}
+                            </span>
+                          )}
                         </td>
                         <td>
                           <PMStatusBadge status={status} />
@@ -1897,6 +2001,9 @@ function App() {
             <button className="btnGrad" onClick={() => flash("PM schedules refreshed.")}>
               Refresh
             </button>
+            <button className="btnGrad" onClick={() => setShowPMModal({ kind: "usage", pm: null })}>
+              {"+ Add PM"}
+            </button>
           </div>
           <div className="tableWrap">
             <table className="grid pmGrid">
@@ -1931,7 +2038,9 @@ function App() {
                           {gearMenu?.type === "u" && gearMenu.id === pm.id && (
                             <div className="gearMenu">
                               <div onClick={() => resetUsagePM(pm)}>{"✓ Complete + reset counter"}</div>
-                              <div onClick={() => createWOFromPM(pm.tool, pm.name)}>{"+ Create Work Order"}</div>
+                              <div onClick={() => createWOFromPM(pm)}>{"+ Create Work Order"}</div>
+                              <div onClick={() => { setGearMenu(null); setShowPMModal({ kind: "usage", pm }); }}>{"✎ Edit PM & checklist"}</div>
+                              <div className="gearDel" onClick={() => deletePM("usage", pm.id, pm.name)}>{"🗑 Delete PM"}</div>
                             </div>
                           )}
                         </td>
@@ -1950,6 +2059,15 @@ function App() {
                             onSave={(v) => v.trim() && (updateUsagePM(pm.id, { name: v.trim() }), flash("PM name updated."))}
                             title="Tap to edit PM name"
                           />
+                          {pm.checklist && pm.checklist.length > 0 && (
+                            <span
+                              className="chkChip"
+                              title="Checklist steps — tap to edit"
+                              onClick={() => setShowPMModal({ kind: "usage", pm })}
+                            >
+                              {"☑ " + pm.checklist.length}
+                            </span>
+                          )}
                         </td>
                         <td>
                           <PMStatusBadge status={status} />
@@ -2451,6 +2569,195 @@ function App() {
 }
 
 /* ---------- settings modal ---------- */
+/* Reusable steps editor — plain-English checklist steps (strings). Used by both the
+   PM create/edit modal and the Adhoc PM modal. Add / remove / reorder; no drag on
+   purpose (keeps it thumb-friendly on a phone). */
+function StepsEditor({ steps, setSteps }) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const t = draft.trim();
+    if (!t) return;
+    setSteps([...steps, t]);
+    setDraft("");
+  };
+  const remove = (i) => setSteps(steps.filter((_, j) => j !== i));
+  const move = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= steps.length) return;
+    const list = [...steps];
+    [list[i], list[j]] = [list[j], list[i]];
+    setSteps(list);
+  };
+  return (
+    <div className="stepsEditor">
+      {steps.length === 0 && <div className="muted">No steps yet — add the tasks to run for this PM.</div>}
+      {steps.map((s, i) => (
+        <div className="stepRow" key={i}>
+          <span className="stepNum">{i + 1}.</span>
+          <span className="stepText">{s}</span>
+          <span className="stepBtns">
+            <a onClick={() => move(i, -1)} title="Move up">{"▲"}</a>
+            <a onClick={() => move(i, 1)} title="Move down">{"▼"}</a>
+            <a className="stepDel" onClick={() => remove(i)} title="Remove step">{"✕"}</a>
+          </span>
+        </div>
+      ))}
+      <div className="stepAdd">
+        <input
+          value={draft}
+          placeholder="Add a step…"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
+        />
+        <button className="btnGrad" onClick={add}>Add step</button>
+      </div>
+    </div>
+  );
+}
+
+/* Create / edit a recurring PM (time- or usage-based) plus its checklist. One modal
+   serves both add (pm=null) and edit (pm=existing). Fields stay in plain household
+   terms — days for time PMs, counts for usage PMs. */
+function PMModal({ kind, pm, onClose, onSave }) {
+  const isTime = kind === "time";
+  const [tool, setTool] = useState(pm?.tool || "");
+  const [name, setName] = useState(pm?.name || "");
+  const [dueDate, setDueDate] = useState(tsToDateInput(pm?.due || Date.now() + 7 * H));
+  const [everyDays, setEveryDays] = useState(pm ? Math.round((pm.freqH || 168) / 24) : 7);
+  const [unit, setUnit] = useState(pm?.unit || "mi");
+  const [count, setCount] = useState(pm?.count ?? 0);
+  const [dueAt, setDueAt] = useState(pm?.due ?? 5000);
+  const [overAt, setOverAt] = useState(pm?.limit ?? 6000);
+  const [steps, setSteps] = useState(Array.isArray(pm?.checklist) ? pm.checklist : []);
+
+  const save = () => {
+    if (!name.trim()) return alert("PM name is required.");
+    if (isTime) {
+      const days = Math.max(1, Number(everyDays) || 1);
+      onSave(
+        { tool: tool.trim(), name: name.trim(), due: dateInputToTs(dueDate), freqH: days * 24, checklist: steps },
+        pm?.id
+      );
+    } else {
+      onSave(
+        {
+          tool: tool.trim(),
+          name: name.trim(),
+          unit: (unit || "mi").trim(),
+          count: Number(count) || 0,
+          due: Number(dueAt) || 0,
+          limit: Number(overAt) || 0,
+          checklist: steps,
+        },
+        pm?.id
+      );
+    }
+  };
+
+  return (
+    <div className="modalWrap" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modalTitle">
+          {(pm ? "Edit " : "Add ") + (isTime ? "Time Based PM" : "Usage Based PM")}
+        </div>
+        <label className="modalField">
+          Item (what it's on)
+          <input value={tool} placeholder="e.g. Litterbox, Mazda CX-5" onChange={(e) => setTool(e.target.value)} />
+        </label>
+        <label className="modalField">
+          PM name
+          <input value={name} placeholder="e.g. Full litter change" onChange={(e) => setName(e.target.value)} />
+        </label>
+        {isTime ? (
+          <div className="modalRow">
+            <label className="modalField">
+              Next due
+              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </label>
+            <label className="modalField">
+              Repeat every (days)
+              <input type="number" min="1" value={everyDays} onChange={(e) => setEveryDays(e.target.value)} />
+            </label>
+          </div>
+        ) : (
+          <>
+            <div className="modalRow">
+              <label className="modalField">
+                Unit
+                <input value={unit} placeholder="mi / hrs / cycles" onChange={(e) => setUnit(e.target.value)} />
+              </label>
+              <label className="modalField">
+                Current count
+                <input type="number" value={count} onChange={(e) => setCount(e.target.value)} />
+              </label>
+            </div>
+            <div className="modalRow">
+              <label className="modalField">
+                Due at ({unit})
+                <input type="number" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+              </label>
+              <label className="modalField">
+                Overdue at ({unit})
+                <input type="number" value={overAt} onChange={(e) => setOverAt(e.target.value)} />
+              </label>
+            </div>
+          </>
+        )}
+        <div className="modalSection">Checklist steps</div>
+        <div className="modalHint">These steps drop into the work order's Gameplan whenever you create a Work Order from this PM.</div>
+        <StepsEditor steps={steps} setSteps={setSteps} />
+        <div className="modalBtns">
+          <button className="btnGrad" onClick={save}>{pm ? "Save changes" : "Add PM"}</button>
+          <button className="btnGrad" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Adhoc / one-off PM — no recurring schedule. Creates a Priority 4 work order with
+   the given steps as its Gameplan. */
+function AdhocPMModal({ me, onClose, onCreate }) {
+  const [tool, setTool] = useState("");
+  const [name, setName] = useState("");
+  const [assigned, setAssigned] = useState("Unassigned");
+  const [steps, setSteps] = useState([]);
+  const create = () => {
+    if (!name.trim()) return alert("Name is required.");
+    onCreate({ tool, name, assigned, steps });
+  };
+  return (
+    <div className="modalWrap" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modalTitle">Adhoc PM (one-off)</div>
+        <div className="modalHint">Creates a Priority 4 work order with these steps — nothing is added to the recurring schedules.</div>
+        <label className="modalField">
+          Item (optional)
+          <input value={tool} placeholder="e.g. Water heater" onChange={(e) => setTool(e.target.value)} />
+        </label>
+        <label className="modalField">
+          What needs doing
+          <input value={name} placeholder="e.g. Flush water heater" onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className="modalField">
+          Assign to
+          <select value={assigned} onChange={(e) => setAssigned(e.target.value)}>
+            {ASSIGNEES.map((a) => (
+              <option key={a}>{a}</option>
+            ))}
+          </select>
+        </label>
+        <div className="modalSection">Checklist steps</div>
+        <StepsEditor steps={steps} setSteps={setSteps} />
+        <div className="modalBtns">
+          <button className="btnGrad" onClick={create}>Create work order</button>
+          <button className="btnGrad" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsModal({ cfg, onClose, onSave, onReset, onChangelog, onDeleteAll }) {
   const [form, setForm] = useState({ userName: cfg.userName || "", sbUrl: cfg.sbUrl || "", sbKey: cfg.sbKey || "" });
   const [test, setTest] = useState("");
