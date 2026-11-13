@@ -7,7 +7,8 @@
    Zero dependencies: Node 18+ only.
 
    Usage:
-     node collector.mjs init      write a starter config
+     node collector.mjs setup     guided one-time setup for this PC (config, autostart, Claude status line)
+     node collector.mjs init      write a starter config without the guided steps
      node collector.mjs           run forever (scan + push every interval)
      node collector.mjs once      scan + push one time, then exit
      node collector.mjs status    print a summary in the terminal (no push)
@@ -15,8 +16,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { spawn } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { spawn, spawnSync } from "node:child_process";
+import { pathToFileURL, fileURLToPath } from "node:url";
+import readline from "node:readline";
 
 const RETAIN_DAYS = 40;
 const DAY_MS = 86400000;
@@ -477,6 +479,99 @@ export function summary(state, cfg) {
   return lines.join("\n") || "No accounts found. Run `node collector.mjs init` and edit the config.";
 }
 
+/* ---------- guided setup ---------- */
+
+async function setup(cfgFile, stateFile, log) {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const fwd = (p) => p.replace(/\\/g, "/");
+  const rl = readline.createInterface({ input: process.stdin });
+  const lines = rl[Symbol.asyncIterator]();
+  const ask = async (q, def) => {
+    process.stdout.write(def ? `${q} [${def}]: ` : `${q}: `);
+    const { value } = await lines.next();
+    return (value || "").trim() || def || "";
+  };
+  let old = {};
+  try {
+    old = JSON.parse(fs.readFileSync(cfgFile, "utf8"));
+  } catch {}
+  const keep = (v) => (v && !v.includes("YOUR-") ? v : "");
+  console.log("AI usage tracker setup. Press Enter to keep the value in [brackets].\n");
+  const cfg = {
+    machine: await ask("Name for this PC", old.machine || os.hostname()),
+    supabase_url: await ask("Supabase project URL", keep(old.supabase_url)),
+    supabase_key: await ask("Supabase anon public key", keep(old.supabase_key)),
+    interval_seconds: old.interval_seconds || 60,
+    accounts: old.accounts?.length ? old.accounts : defaultAccounts(),
+    on_reset: old.on_reset || "",
+  };
+  rl.close();
+  if (!/^https?:\/\//.test(cfg.supabase_url) || !cfg.supabase_key) throw new Error("A Supabase URL and key are required. Nothing was changed.");
+  fs.mkdirSync(path.dirname(cfgFile), { recursive: true });
+  fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2) + "\n");
+  console.log(`\n[1/4] Saved ${cfgFile}`);
+  console.log(`      Tracking: ${cfg.accounts.map((a) => `${a.provider}/${a.account}`).join(", ") || "no CLI tools found on this PC yet"}`);
+
+  // Claude Code status line -> exact limit percentages
+  const command = `node "${fwd(path.join(here, "statusline.mjs"))}"`;
+  for (const a of cfg.accounts.filter((x) => x.provider === "claude")) {
+    const file = path.join(expand(a.dir), "settings.json");
+    let settings = {};
+    try {
+      settings = JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch (e) {
+      if (fs.existsSync(file)) {
+        console.log(`[2/4] Could not read ${file}; left it alone. Add the status line by hand (README step 4).`);
+        continue;
+      }
+    }
+    const cur = settings.statusLine?.command;
+    if (cur && !cur.includes("statusline.mjs")) {
+      console.log(`[2/4] ${file} already has a status line; left it alone. Exact Claude limits need ours instead (README step 4).`);
+      continue;
+    }
+    settings.statusLine = { type: "command", command };
+    fs.writeFileSync(file, JSON.stringify(settings, null, 2) + "\n");
+    console.log(`[2/4] Claude status line set in ${file}`);
+  }
+
+  // Start now and at every login
+  const collector = path.join(here, "collector.mjs");
+  const run = (cmd, args) => spawnSync(cmd, args, { stdio: "pipe", encoding: "utf8" });
+  let started = false;
+  if (process.platform === "linux") {
+    const dir = path.join(os.homedir(), ".config", "systemd", "user");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "ai-usage-collector.service"),
+      `[Unit]\nDescription=AI usage tracker collector\n\n[Service]\nExecStart="${process.execPath}" "${collector}"\nRestart=always\nRestartSec=30\n\n[Install]\nWantedBy=default.target\n`,
+    );
+    run("systemctl", ["--user", "daemon-reload"]);
+    const r = run("systemctl", ["--user", "enable", "--now", "ai-usage-collector"]);
+    run("systemctl", ["--user", "restart", "ai-usage-collector"]);
+    started = r.status === 0;
+    console.log(started ? "[3/4] Background service installed and started (systemd user service: ai-usage-collector)" : `[3/4] Could not start the background service (${(r.stderr || r.error?.message || "").trim().split("\n")[0]}).`);
+  } else if (process.platform === "win32") {
+    const r = run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(here, "..", "install", "install-windows.ps1")]);
+    started = r.status === 0;
+    console.log(started ? "[3/4] Scheduled task installed and started (AI Usage Collector)" : `[3/4] Could not install the scheduled task (${(r.stderr || r.error?.message || "").trim().split("\n")[0]}).`);
+  }
+  if (!started) console.log(`      To run it by hand, leave this running in a terminal:  node "${collector}"`);
+
+  // First upload, which also proves the URL, key and tables are right
+  const state = loadState(stateFile);
+  const full = loadConfig(cfgFile);
+  scan(state, full, log);
+  try {
+    await push(state, full);
+    console.log("[4/4] First upload worked. Open the dashboard to see this PC.\n");
+  } catch (e) {
+    console.log(`[4/4] Upload failed: ${e.message}\n      Check the URL and key, and that supabase.sql has been run in that project. Then run setup again.\n`);
+  }
+  saveState(stateFile, state);
+  console.log(summary(state, full));
+}
+
 /* ---------- main ---------- */
 
 async function main() {
@@ -487,6 +582,7 @@ async function main() {
   const stateFile = path.join(homeDir(), "state.json");
   const log = (m) => console.log(`${new Date().toISOString().slice(0, 19)}Z ${m}`);
 
+  if (cmd === "setup") return setup(cfgFile, stateFile, log);
   if (cmd === "init") {
     if (fs.existsSync(cfgFile)) return console.log(`Config already exists: ${cfgFile}`);
     fs.mkdirSync(path.dirname(cfgFile), { recursive: true });
@@ -525,7 +621,7 @@ async function main() {
     await cycle();
     return console.log(summary(state, cfg));
   }
-  if (cmd !== "watch") return console.log("Commands: init | watch (default) | once | status");
+  if (cmd !== "watch") return console.log("Commands: setup | init | watch (default) | once | status");
   log(`watching ${cfg.accounts.map((a) => `${a.provider}/${a.account}`).join(", ") || "nothing (no accounts found)"} as "${cfg.machine}"`);
   for (;;) {
     await cycle();

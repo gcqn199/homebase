@@ -31,24 +31,23 @@ You need Node 18+ on each PC (`node -v` to check).
 
 In Supabase (the same project Homebase uses is fine) open **SQL Editor**, paste the contents of `supabase.sql`, and run it. Then copy the **Project URL** and **anon public** key from **Project Settings → API**.
 
-### 2. Start the collector on each PC
+### 2. Set up each PC (one command)
+
+Get the repo onto the PC once:
 
 ```bash
-node usage-tracker/collector/collector.mjs init
+git clone https://github.com/gcqn199/homebase.git
 ```
 
-That writes `~/.ai-usage-tracker/config.json` (on Windows: `C:\Users\you\.ai-usage-tracker\config.json`) and lists the CLI tools it found. Open the file, paste the URL and key, and give each PC its own `machine` name. Then test it:
+Then run the guided setup. It asks for a name for the PC and the Supabase URL and key, and does the rest:
 
 ```bash
-node usage-tracker/collector/collector.mjs once
+node homebase/usage-tracker/collector/collector.mjs setup
 ```
 
-It prints one line per account. To keep it running in the background:
+It saves the config, turns on the Claude Code status line (exact limit percentages), installs the collector to start at every login (a systemd user service on Debian, a scheduled task on Windows), and does a first upload to prove the connection works. Running it again is safe and keeps your earlier answers.
 
-- **Debian:** follow the five commands at the top of `install/ai-usage-collector.service`.
-- **Windows:** run `install\install-windows.ps1` once (instructions at the top of the file).
-
-`node usage-tracker/collector/collector.mjs status` prints the current numbers in a terminal at any time.
+`node homebase/usage-tracker/collector/collector.mjs status` prints the current numbers in a terminal at any time. The config lives in `~/.ai-usage-tracker/config.json` (on Windows: `C:\Users\you\.ai-usage-tracker\config.json`).
 
 ### 3. Open the dashboard
 
@@ -60,9 +59,9 @@ Once this folder is on the `main` branch, GitHub Pages serves it at `https://<us
 
 To preview it with sample data, add `?demo` to the address.
 
-### 4. Turn on exact Claude limits
+### 4. Exact Claude limits (done by setup; manual steps for reference)
 
-Claude Code hands its real 5-hour and weekly percentages to a "status line" script. Add this to `~/.claude/settings.json` (adjust the path to where the repo is):
+Claude Code hands its real 5-hour and weekly percentages to a "status line" script. Setup adds this for you unless you already had a different status line. To do it by hand, add this to `~/.claude/settings.json` (adjust the path to where the repo is):
 
 ```json
 {

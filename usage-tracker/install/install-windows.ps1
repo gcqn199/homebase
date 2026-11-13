@@ -1,5 +1,5 @@
 # Windows: starts the collector at every logon, hidden in the background.
-# Run once from PowerShell, inside this folder:
+# `collector.mjs setup` runs this for you. To run it by hand, from PowerShell inside this folder:
 #   powershell -ExecutionPolicy Bypass -File .\install-windows.ps1
 $collector = (Resolve-Path "$PSScriptRoot\..\collector\collector.mjs").Path
 $node = (Get-Command node -ErrorAction Stop).Source
