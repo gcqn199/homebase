@@ -1,0 +1,17 @@
+# Debian: runs the collector in the background whenever you are logged in.
+#   mkdir -p ~/.config/systemd/user
+#   cp ai-usage-collector.service ~/.config/systemd/user/
+#   (edit the path on the ExecStart line if the repo is not in ~/homebase)
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now ai-usage-collector
+#   loginctl enable-linger $USER      # optional: keep it running when logged out
+[Unit]
+Description=AI usage tracker collector
+
+[Service]
+ExecStart=/usr/bin/env node %h/homebase/usage-tracker/collector/collector.mjs
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

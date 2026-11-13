@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI Usage</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121211" media="(prefers-color-scheme: dark)">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f4f3f0; --surface: #fcfcfb; --line: #e2e0da; --track: #e9e7e1;
+  --text: #0b0b0b; --text-2: #52514e; --text-3: #7b7974;
+  --accent: #2a78d6;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948; --s-other: #9a9891;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #121211; --surface: #1a1a19; --line: #32312e; --track: #2b2a28;
+    --text: #f0efec; --text-2: #c3c2b7; --text-3: #8f8d85;
+    --accent: #3987e5;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767; --s-other: #77756e;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+main { max-width: 1040px; margin: 0 auto; padding: 20px 16px calc(40px + env(safe-area-inset-bottom)); }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+h1 { font-size: 20px; margin: 0; flex: 1; letter-spacing: -0.01em; }
+h2 { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 28px 0 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+button { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; min-height: 36px; }
+button:hover { border-color: var(--text-3); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.quiet { border-color: transparent; background: none; color: var(--text-2); padding: 4px 8px; min-height: 30px; }
+.sync { font-size: 13px; color: var(--text-2); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tile .label { font-size: 13px; color: var(--text-2); }
+.tile .value { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.tile .sub { font-size: 13px; color: var(--text-3); }
+.advice { margin-top: 12px; display: grid; gap: 8px; }
+.advice div { display: flex; gap: 8px; align-items: baseline; }
+.advice b { font-weight: 600; }
+.accounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+.acct-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.acct-head .name { font-weight: 600; flex: 1; overflow-wrap: anywhere; }
+.badge { font-size: 11px; color: var(--text-2); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; white-space: nowrap; }
+.acct-sub { font-size: 13px; color: var(--text-2); margin-bottom: 12px; }
+.meter { margin-top: 12px; }
+.meter-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.meter-top .fig { font-variant-numeric: tabular-nums; font-weight: 600; }
+.bar { position: relative; height: 8px; border-radius: 4px; background: var(--track); margin: 6px 0; }
+.bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--accent); min-width: 2px; }
+.bar i.warn { background: var(--warning); } .bar i.crit { background: var(--critical); }
+.bar u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); border-radius: 1px; box-shadow: 0 0 0 2px var(--surface); }
+.meter-note { font-size: 13px; color: var(--text-2); display: flex; gap: 6px; }
+.empty { color: var(--text-3); font-size: 13px; }
+.chart { display: flex; align-items: flex-end; gap: 2px; height: 180px; padding-top: 22px; border-bottom: 1px solid var(--line); position: relative; }
+.chart .max { position: absolute; top: 0; left: 0; font-size: 12px; color: var(--text-3); }
+.col { flex: 1; height: 100%; display: flex; flex-direction: column-reverse; align-items: center; gap: 2px; padding: 0 4px; border-radius: 6px; outline: none; cursor: default; }
+.col:hover, .col:focus { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.col span { width: 100%; max-width: 44px; min-height: 2px; }
+.col span:last-child { border-radius: 4px 4px 0 0; }
+.axis { display: flex; gap: 2px; font-size: 12px; color: var(--text-3); margin-top: 6px; }
+.axis span { flex: 1; text-align: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--text-2); margin-bottom: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.tip { position: fixed; z-index: 5; pointer-events: none; background: var(--text); color: var(--page); font-size: 13px; padding: 8px 10px; border-radius: 8px; max-width: 240px; display: none; }
+.tip div { display: flex; justify-content: space-between; gap: 16px; font-variant-numeric: tabular-nums; }
+details { margin-top: 12px; font-size: 13px; } summary { cursor: pointer; color: var(--text-2); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; margin-top: 8px; }
+th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--text-2); font-weight: 600; }
+.machines { font-size: 13px; color: var(--text-2); display: flex; flex-wrap: wrap; gap: 6px 18px; }
+dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); padding: 20px; width: min(420px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+dialog h3 { margin: 0 0 12px; font-size: 17px; }
+label { display: block; font-size: 13px; color: var(--text-2); margin: 12px 0 4px; }
+input, select { font: inherit; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--page); color: var(--text); }
+.row { display: flex; gap: 8px; } .row > * { flex: 1; }
+.actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
+.hint { font-size: 13px; color: var(--text-3); margin-top: 8px; }
+.err { color: var(--critical); font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>AI Usage</h1>
+    <span class="sync" id="sync"></span>
+    <button id="addBtn">+ Chat account</button>
+    <button id="setupBtn" aria-label="Connection settings">Settings</button>
+  </header>
+  <div id="app"></div>
+</main>
+<div class="tip" id="tip"></div>
+
+<dialog id="setupDlg">
+  <form method="dialog" id="setupForm">
+    <h3>Connect to your data</h3>
+    <div class="hint">Paste the same two values the collector uses. They stay in this browser only.</div>
+    <label for="sbUrl">Supabase project URL</label>
+    <input id="sbUrl" placeholder="https://xxxx.supabase.co" autocomplete="off" required>
+    <label for="sbKey">Supabase anon public key</label>
+    <input id="sbKey" autocomplete="off" required>
+    <div class="err" id="setupErr"></div>
+    <div class="actions"><button type="button" data-close>Cancel</button><button class="primary">Save</button></div>
+  </form>
+</dialog>
+
+<dialog id="acctDlg">
+  <form method="dialog" id="acctForm">
+    <h3 id="acctTitle">Chat account</h3>
+    <div class="hint">For plans with no usage data to read (ChatGPT, Claude or Gemini in the browser or app). Update the reading whenever the app tells you where you stand.</div>
+    <div class="row">
+      <div><label for="mProvider">Service</label><input id="mProvider" placeholder="ChatGPT" required></div>
+      <div><label for="mAccount">Account</label><input id="mAccount" placeholder="work gmail" required></div>
+    </div>
+    <label for="mWindow">Limit resets</label>
+    <select id="mWindow">
+      <option value="300">Every 5 hours</option><option value="180">Every 3 hours</option>
+      <option value="1440">Daily</option><option value="10080">Weekly</option><option value="43200">Monthly</option>
+    </select>
+    <div class="row">
+      <div><label for="mUsed">Used now (%)</label><input id="mUsed" type="number" min="0" max="100" placeholder="100 = limit hit"></div>
+      <div><label for="mHours">Resets in (hours)</label><input id="mHours" type="number" min="0" step="0.25" placeholder="e.g. 2.5"></div>
+    </div>
+    <div class="actions">
+      <button type="button" id="mDelete" style="margin-right:auto">Delete</button>
+      <button type="button" data-close>Cancel</button><button class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const DEMO = new URLSearchParams(location.search).has("demo");
+const store = {
+  get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+let cfg = { url: store.get("aiut.url"), key: store.get("aiut.key") };
+let data = { buckets: [], state: [], loadedAt: null, error: "" };
+
+/* ---------- Supabase REST ---------- */
+async function sb(pathAndQuery, opts = {}) {
+  const res = await fetch(cfg.url.replace(/\/+$/, "") + "/rest/v1/" + pathAndQuery, {
+    ...opts,
+    headers: { apikey: cfg.key, Authorization: "Bearer " + cfg.key, "Content-Type": "application/json", ...(opts.headers || {}) },
+  });
+  if (!res.ok) throw new Error(res.status + " " + (await res.text()).slice(0, 160));
+  return opts.method ? null : res.json();
+}
+async function load() {
+  if (DEMO) { data = demoData(); return render(); }
+  if (!cfg.url || !cfg.key) return render();
+  try {
+    const since = new Date(Date.now() - 8 * 864e5).toISOString();
+    const buckets = [];
+    for (let off = 0; ; off += 1000) { // Supabase returns at most 1000 rows per request
+      const page = await sb(`usage_buckets?select=machine,provider,account,model,hour,input,output,cache_read,cache_write,messages&hour=gte.${since}&order=hour&limit=1000&offset=${off}`);
+      buckets.push(...page);
+      if (page.length < 1000) break;
+    }
+    const state = await sb("usage_state?select=key,data,updated_at");
+    data = { buckets, state, loadedAt: new Date(), error: "" };
+  } catch (e) { data.error = e.message; }
+  render();
+}
+async function saveManual(list) {
+  if (DEMO) { data.state = data.state.filter((r) => r.key !== "manual").concat({ key: "manual", data: { accounts: list } }); return render(); }
+  await sb("usage_state?on_conflict=key", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify([{ key: "manual", data: { accounts: list }, updated_at: new Date().toISOString() }]) });
+  await load();
+}
+
+/* ---------- model ---------- */
+const KNOWN = { claude: ["Claude", "--s1"], codex: ["Codex / ChatGPT", "--s2"], chatgpt: ["Codex / ChatGPT", "--s2"], gemini: ["Gemini", "--s3"] };
+const EXTRA = ["--s4", "--s5", "--s6", "--s7", "--s8"];
+function providerInfo(p, all) {
+  const k = String(p).toLowerCase();
+  if (KNOWN[k]) return { label: KNOWN[k][0], color: `var(${KNOWN[k][1]})` };
+  const others = [...new Set(all.map((x) => String(x).toLowerCase()).filter((x) => !KNOWN[x]))].sort();
+  const i = others.indexOf(k);
+  return { label: p, color: `var(${EXTRA[i] || "--s-other"})` }; // color follows the service, not its rank
+}
+const tokensOf = (b) => b.input + b.output + b.cache_write;
+const fmt = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + "k" : String(Math.round(n));
+function dur(ms) {
+  const m = Math.max(0, Math.round(ms / 60000));
+  return m >= 1440 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+}
+function ago(iso) { return iso ? dur(Date.now() - new Date(iso)) + " ago" : "never"; }
+
+function buildAccounts() {
+  const now = Date.now(), midnight = new Date().setHours(0, 0, 0, 0);
+  const map = new Map();
+  const get = (provider, account) => {
+    const k = String(provider).toLowerCase() + "|" + account;
+    if (!map.has(k)) map.set(k, { provider, account, today: 0, replies: 0, last5h: 0, windows: [], source: "", observed: null, manual: null });
+    return map.get(k);
+  };
+  for (const b of data.buckets) {
+    const a = get(b.provider, b.account), t = new Date(b.hour).getTime();
+    if (t >= midnight) { a.today += tokensOf(b); a.replies += b.messages; }
+    if (t >= now - 5 * 36e5) a.last5h += tokensOf(b);
+  }
+  for (const r of data.state) {
+    if (r.key.startsWith("limits:") && r.data) {
+      const a = get(r.data.provider, r.data.account);
+      Object.assign(a, { windows: r.data.windows || [], source: r.data.source, observed: r.data.observed_at });
+    }
+    if (r.key === "manual") for (const m of r.data?.accounts || []) {
+      const a = get(m.provider, m.account);
+      a.manual = m; a.source = "manual"; a.observed = m.observed_at;
+      a.windows = m.resets_at ? [{ key: "manual", label: windowName(m.window_minutes), window_minutes: m.window_minutes, used_pct: m.used_pct ?? 0, resets_at: m.resets_at }] : [];
+    }
+  }
+  const list = [...map.values()];
+  for (const a of list) a.windows = a.windows.map((w) => judge(w, now));
+  return list.sort((x, y) => (x.provider + x.account).localeCompare(y.provider + y.account));
+}
+const windowName = (min) => ({ 180: "3-hour", 300: "5-hour", 1440: "Daily", 10080: "Weekly", 43200: "Monthly" })[min] || "Limit";
+
+/* Compare how much is used with how much of the window has gone by. */
+function judge(w, now) {
+  const end = new Date(w.resets_at).getTime(), len = (w.window_minutes || 300) * 60000;
+  const left = end - now;
+  if (left <= 0) return { ...w, done: true, used: 0, elapsed: 0, left: 0, tone: "good", icon: "✓", note: "Reset. Full allowance available." };
+  const used = Math.max(0, Math.min(100, w.used_pct)), elapsed = Math.max(0, Math.min(100, (1 - left / len) * 100));
+  const o = { ...w, used, elapsed, left };
+  if (used >= 100) return { ...o, tone: "crit", icon: "✕", note: `Limit reached. Back in ${dur(left)}.` };
+  if (used >= 90) return { ...o, tone: "crit", icon: "!", note: "Nearly out. Switch to another account." };
+  if (used > elapsed + 15) return { ...o, tone: "warn", icon: "▲", note: `Ahead of pace by ${Math.round(used - elapsed)} points. Ease off or switch.` };
+  if (used < elapsed - 25 && elapsed >= 60) return { ...o, tone: "use", icon: "▼", note: `${Math.round(100 - used)}% will expire unused in ${dur(left)}. Use it.` };
+  return { ...o, tone: "ok", icon: "•", note: "On pace." };
+}
+
+/* ---------- render ---------- */
+function render() {
+  const app = $("app");
+  if (!DEMO && (!cfg.url || !cfg.key)) {
+    $("sync").textContent = "";
+    app.innerHTML = `<div class="card"><b>Not connected yet.</b><div class="hint">Tap Settings and paste your Supabase URL and key (setup steps are in the README).</div></div>`;
+    return;
+  }
+  $("sync").textContent = data.error ? "Offline: " + data.error : data.loadedAt ? "Updated " + data.loadedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Loading…";
+  const accts = buildAccounts();
+  const providers = [...new Set([...data.buckets.map((b) => b.provider), ...accts.map((a) => a.provider)])];
+  const info = (p) => providerInfo(p, providers);
+  const today = accts.reduce((s, a) => s + a.today, 0), replies = accts.reduce((s, a) => s + a.replies, 0);
+  const live = accts.flatMap((a) => a.windows.map((w) => ({ a, w })));
+  const blocked = live.filter((x) => x.w.tone === "crit"), wasting = live.filter((x) => x.w.tone === "use");
+  // Best account to use now: the most allowance that expires soonest, skipping accounts with any window nearly spent.
+  const open = accts.filter((a) => a.windows.length && !a.windows.some((w) => w.tone === "crit"));
+  const pick = open.map((a) => {
+    const w = a.windows.filter((x) => !x.done).sort((x, y) => x.left - y.left)[0];
+    const spare = 100 - Math.max(...a.windows.map((x) => x.used));
+    return { a, w, spare, score: w ? spare / Math.max(w.left / 36e5, 0.25) : spare / 5 };
+  }).sort((x, y) => y.score - x.score)[0];
+  const who = (a) => `${esc(info(a.provider).label)} · ${esc(a.account)}`;
+
+  let h = `<div class="tiles">
+    <div class="card tile"><div class="label">Tokens today</div><div class="value">${fmt(today)}</div><div class="sub">${replies} replies across ${accts.filter((a) => a.today).length} accounts</div></div>
+    <div class="card tile"><div class="label">At or near a limit</div><div class="value">${new Set(blocked.map((x) => x.a)).size}</div><div class="sub">of ${accts.length} accounts</div></div>
+    <div class="card tile"><div class="label">Allowance about to expire</div><div class="value">${wasting.length}</div><div class="sub">windows with unused headroom</div></div>
+  </div>`;
+  if (accts.length) {
+    h += `<div class="card advice">`;
+    h += pick ? `<div><span>→</span><span><b>Use next:</b> ${who(pick.a)} (${Math.round(pick.spare)}% free${pick.w ? `, ${esc(pick.w.label.toLowerCase())} window resets in ${dur(pick.w.left)}` : ""})</span></div>`
+      : `<div><span>→</span><span><b>Use next:</b> no account has a live reading. Use any, then check back.</span></div>`;
+    for (const x of blocked) h += `<div><span>✕</span><span><b>Avoid:</b> ${who(x.a)}, ${esc(x.w.label.toLowerCase())} at ${Math.round(x.w.used)}%, resets in ${dur(x.w.left)}</span></div>`;
+    h += `</div>`;
+  }
+
+  h += `<h2>Accounts</h2><div class="accounts">`;
+  if (!accts.length) h += `<div class="card empty">Nothing yet. Start the collector on a PC, or add a chat account.</div>`;
+  for (const a of accts) {
+    const p = info(a.provider);
+    const badge = a.source === "reported" ? "live" : a.source === "estimated" ? "estimated" : a.source === "manual" ? "manual" : "tokens only";
+    h += `<div class="card"><div class="acct-head"><span class="dot" style="background:${p.color}"></span><span class="name">${esc(p.label)} · ${esc(a.account)}</span><span class="badge">${badge}</span>${a.manual ? `<button class="quiet" data-edit="${esc(a.manual.id)}">Update</button>` : ""}</div>`;
+    h += `<div class="acct-sub">${a.manual && !a.today ? "" : `${fmt(a.today)} tokens today · ${fmt(a.last5h)} in the last 5h`}${a.observed ? `${a.manual && !a.today ? "" : " · "}reading ${ago(a.observed)}` : ""}</div>`;
+    if (!a.windows.length) h += `<div class="empty">${a.manual ? "No reading yet. Tap Update when the app shows your usage or a limit message." : "No limit reading. Token counts only."}</div>`;
+    for (const w of a.windows) {
+      h += `<div class="meter"><div class="meter-top"><span>${esc(w.label)}</span><span class="fig">${w.done ? "0%" : Math.round(w.used) + "% used"}${w.done ? "" : ` · resets in ${dur(w.left)}`}</span></div>
+        <div class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(w.used)}" aria-label="${esc(w.label)} used"><i class="${w.tone === "crit" ? "crit" : w.tone === "warn" ? "warn" : ""}" style="width:${w.used}%"></i>${w.done ? "" : `<u style="left:calc(${w.elapsed}% - 1px)" title="Time elapsed in this window"></u>`}</div>
+        <div class="meter-note"><span aria-hidden="true">${w.icon}</span><span>${esc(w.note)}</span></div></div>`;
+    }
+    h += `</div>`;
+  }
+  h += `</div><div class="hint">The dark tick on each bar is how far through the window you are. Fill left of the tick means you have room; fill past it means you are burning fast.</div>`;
+
+  /* 7-day chart: tokens per day, stacked by service */
+  const days = [...Array(7)].map((_, i) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 6 + i); return d; });
+  const provs = [...new Set(data.buckets.map((b) => String(b.provider).toLowerCase()))].sort((x, y) => (KNOWN[x] ? 0 : 1) - (KNOWN[y] ? 0 : 1) || x.localeCompare(y));
+  const grid = days.map((d) => Object.fromEntries(provs.map((p) => [p, 0])));
+  for (const b of data.buckets) {
+    const t = new Date(b.hour), i = days.findIndex((d, j) => t >= d && (j === 6 || t < days[j + 1]));
+    if (i >= 0) grid[i][String(b.provider).toLowerCase()] += tokensOf(b);
+  }
+  const sums = grid.map((g) => Object.values(g).reduce((s, v) => s + v, 0)), max = Math.max(...sums, 1);
+  const dayName = (d) => d.toLocaleDateString([], { weekday: "short" });
+  h += `<h2>Last 7 days</h2><div class="card">`;
+  if (!provs.length) h += `<div class="empty">No token data yet.</div>`;
+  else {
+    if (provs.length > 1) h += `<div class="legend">${provs.map((p) => `<span><i class="dot" style="background:${info(p).color}"></i>${esc(info(p).label)}</span>`).join("")}</div>`;
+    h += `<div class="chart"><span class="max">${fmt(max)} tokens</span>${grid.map((g, i) => `<div class="col" tabindex="0" data-day="${i}" aria-label="${dayName(days[i])}: ${fmt(sums[i])} tokens">${provs.filter((p) => g[p] > 0).map((p) => `<span style="height:${(g[p] / max) * 100}%;background:${info(p).color}"></span>`).join("")}</div>`).join("")}</div>
+      <div class="axis">${days.map((d, i) => `<span>${i === 6 ? "Today" : dayName(d)}</span>`).join("")}</div>
+      <details><summary>Show as table</summary><div class="scroll"><table><tr><th>Day</th>${provs.map((p) => `<th>${esc(info(p).label)}</th>`).join("")}<th>Total</th></tr>
+      ${grid.map((g, i) => `<tr><td>${days[i].toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</td>${provs.map((p) => `<td>${fmt(g[p])}</td>`).join("")}<td>${fmt(sums[i])}</td></tr>`).join("")}</table></div></details>`;
+  }
+  h += `<div class="hint">Tokens are new input, output and cache writes. Cheap cached re-reads are left out so the numbers reflect real work.</div></div>`;
+
+  const machines = data.state.filter((r) => r.key.startsWith("machine:"));
+  h += `<h2>Collectors</h2><div class="card machines">${machines.length ? machines.map((m) => { const stale = Date.now() - new Date(m.data.at) > 10 * 60000; return `<span>${stale ? "○" : "●"} ${esc(m.data.machine)}: ${stale ? "last seen " + ago(m.data.at) : "running"}</span>`; }).join("") : `<span class="empty">No PC is reporting yet.</span>`}</div>`;
+  app.innerHTML = h;
+  app._chart = { grid, days, provs, sums, info };
+}
+
+/* ---------- chart tooltip ---------- */
+const tip = $("tip");
+function showTip(col) {
+  const c = $("app")._chart, i = +col.dataset.day;
+  tip.innerHTML = `<b>${c.days[i].toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</b>` +
+    c.provs.filter((p) => c.grid[i][p] > 0).map((p) => `<div><span>${esc(c.info(p).label)}</span><span>${fmt(c.grid[i][p])}</span></div>`).join("") +
+    `<div><span>Total</span><span>${fmt(c.sums[i])}</span></div>`;
+  tip.style.display = "block";
+  const r = col.getBoundingClientRect(), w = tip.offsetWidth;
+  tip.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + "px";
+  tip.style.top = Math.max(8, r.top - tip.offsetHeight - 6) + "px";
+}
+for (const ev of ["mouseover", "focusin", "click"]) $("app").addEventListener(ev, (e) => { const col = e.target.closest(".col"); if (col) showTip(col); });
+for (const ev of ["mouseout", "focusout"]) $("app").addEventListener(ev, (e) => { if (e.target.closest(".col")) tip.style.display = "none"; });
+
+/* ---------- dialogs ---------- */
+document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
+$("setupBtn").onclick = () => { $("sbUrl").value = cfg.url; $("sbKey").value = cfg.key; $("setupErr").textContent = ""; $("setupDlg").showModal(); };
+$("setupForm").onsubmit = async (e) => {
+  e.preventDefault();
+  cfg = { url: $("sbUrl").value.trim(), key: $("sbKey").value.trim() };
+  try { await sb("usage_state?select=key&limit=1"); } catch (err) { $("setupErr").textContent = "Could not connect: " + err.message; return; }
+  store.set("aiut.url", cfg.url); store.set("aiut.key", cfg.key);
+  $("setupDlg").close(); load();
+};
+const manualList = () => (data.state.find((r) => r.key === "manual")?.data?.accounts || []).slice();
+let editing = null;
+function openAcct(id) {
+  editing = manualList().find((m) => m.id === id) || null;
+  $("acctTitle").textContent = editing ? "Update reading" : "Add a chat account";
+  $("mProvider").value = editing?.provider || ""; $("mAccount").value = editing?.account || "";
+  $("mWindow").value = String(editing?.window_minutes || 300);
+  $("mUsed").value = ""; $("mHours").value = "";
+  $("mDelete").style.display = editing ? "" : "none";
+  $("acctDlg").showModal();
+}
+$("addBtn").onclick = () => openAcct(null);
+$("app").addEventListener("click", (e) => { const b = e.target.closest("[data-edit]"); if (b) openAcct(b.dataset.edit); });
+$("acctForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const list = manualList().filter((m) => m.id !== editing?.id);
+  const m = { ...(editing || { id: Date.now().toString(36) }), provider: $("mProvider").value.trim(), account: $("mAccount").value.trim(), window_minutes: +$("mWindow").value };
+  if ($("mUsed").value !== "" || $("mHours").value !== "") {
+    const hours = $("mHours").value !== "" ? +$("mHours").value : m.window_minutes / 60;
+    Object.assign(m, { used_pct: +$("mUsed").value || 0, resets_at: new Date(Date.now() + hours * 36e5).toISOString(), observed_at: new Date().toISOString() });
+  }
+  $("acctDlg").close();
+  try { await saveManual(list.concat(m)); } catch (err) { data.error = err.message; render(); }
+};
+$("mDelete").onclick = async () => { $("acctDlg").close(); try { await saveManual(manualList().filter((m) => m.id !== editing?.id)); } catch (err) { data.error = err.message; render(); } };
+
+/* ---------- sample data for ?demo ---------- */
+function demoData() {
+  const now = Date.now(), H = 36e5, buckets = [];
+  const rnd = (i) => Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
+  const mk = (provider, account, model, scale, machine) => { for (let h = 0; h < 168; h++) { const r = rnd(h + scale); if (r < 0.55) continue; const t = new Date(Math.floor((now - h * H) / H) * H).toISOString(); buckets.push({ machine, provider, account, model, hour: t, input: Math.round(r * scale * 0.5), output: Math.round(r * scale * 0.3), cache_read: Math.round(r * scale * 6), cache_write: Math.round(r * scale * 0.4), messages: Math.round(r * 30) }); } };
+  mk("claude", "personal", "claude-sonnet-5-5", 400000, "debian-pc"); mk("claude", "work", "claude-opus-5-5", 250000, "windows-pc");
+  mk("codex", "main", "gpt-5.5-codex", 300000, "windows-pc"); mk("gemini", "gmail-1", "gemini-3-pro", 180000, "debian-pc");
+  const iso = (ms) => new Date(now + ms).toISOString();
+  const lim = (provider, account, source, windows) => ({ key: `limits:${provider}:${account}`, data: { provider, account, source, observed_at: iso(-4 * 60000), windows } });
+  const state = [
+    lim("claude", "personal", "reported", [{ key: "five_hour", label: "5-hour", window_minutes: 300, used_pct: 78, resets_at: iso(2.9 * H) }, { key: "seven_day", label: "Weekly", window_minutes: 10080, used_pct: 44, resets_at: iso(80 * H) }]),
+    lim("claude", "work", "reported", [{ key: "five_hour", label: "5-hour", window_minutes: 300, used_pct: 18, resets_at: iso(0.8 * H) }, { key: "seven_day", label: "Weekly", window_minutes: 10080, used_pct: 31, resets_at: iso(30 * H) }]),
+    lim("codex", "main", "reported", [{ key: "five_hour", label: "5-hour", window_minutes: 300, used_pct: 96, resets_at: iso(1.4 * H) }, { key: "seven_day", label: "Weekly", window_minutes: 10080, used_pct: 58, resets_at: iso(60 * H) }]),
+    lim("gemini", "gmail-1", "estimated", [{ key: "daily", label: "Daily requests", window_minutes: 1440, used_pct: 35, resets_at: iso(9 * H) }]),
+    { key: "manual", data: { accounts: [{ id: "m1", provider: "ChatGPT", account: "plus (web)", window_minutes: 180, used_pct: 100, resets_at: iso(1.1 * H), observed_at: iso(-50 * 60000) }, { id: "m2", provider: "Gemini", account: "gmail-2 (app)", window_minutes: 1440 }] } },
+    { key: "machine:debian-pc", data: { machine: "debian-pc", at: iso(-30000) } },
+    { key: "machine:windows-pc", data: { machine: "windows-pc", at: iso(-3 * H) } },
+  ];
+  return { buckets, state, loadedAt: new Date(), error: "" };
+}
+
+load();
+setInterval(load, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>

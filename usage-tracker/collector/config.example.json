@@ -1,0 +1,13 @@
+{
+  "machine": "debian-pc",
+  "supabase_url": "https://YOUR-PROJECT.supabase.co",
+  "supabase_key": "YOUR-ANON-PUBLIC-KEY",
+  "interval_seconds": 60,
+  "accounts": [
+    { "provider": "claude", "account": "personal", "dir": "~/.claude" },
+    { "provider": "claude", "account": "work", "dir": "~/.claude-work" },
+    { "provider": "codex", "account": "main", "dir": "~/.codex" },
+    { "provider": "gemini", "account": "gmail-1", "dir": "~/.gemini", "requests_per_day": 0 }
+  ],
+  "on_reset": ""
+}
