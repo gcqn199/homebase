@@ -11,7 +11,9 @@ Settings come from environment variables:
   REPORT_TZ                           your time zone, e.g. America/Chicago (default: UTC)
   REPORT_HOUR                         send at or after this local hour, 0-23 (default: 21)
 
-It is safe to run every hour: it sends once per day, after REPORT_HOUR.
+It is safe to run every hour: it sends once per day, after REPORT_HOUR. GitHub often
+skips scheduled runs, so if the evening run never came, the next run before
+REPORT_HOUR sends the previous day's report instead.
   --force     send now even if it is early or already sent today
   --dry-run   print the email instead of sending it
 """
@@ -72,14 +74,17 @@ def tokens(b):
     return b["input"] + b["output"] + b["cache_write"]
 
 
-def build(buckets, state, now):
-    """Return (subject, plain text, html) for the day that `now` falls in."""
-    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+def build(buckets, state, now, midnight=None):
+    """Return (subject, plain text, html) for the day starting at `midnight` (default: today)."""
+    midnight = midnight or now.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = midnight + timedelta(days=1)
     week_start = midnight - timedelta(days=7)
     today, week = {}, {}
     for b in buckets:
         t = datetime.fromisoformat(b["hour"].replace("Z", "+00:00"))
         key = (b["provider"], b["account"])
+        if t >= day_end:
+            continue
         if t >= midnight:
             d = today.setdefault(key, {"tokens": 0, "replies": 0, "models": {}})
             d["tokens"] += tokens(b)
@@ -123,9 +128,9 @@ def build(buckets, state, now):
             elif w.get("window_minutes", 0) >= 1440 and used < elapsed - 25:
                 tips.append(f"{name(*key)} has {100 - used:.0f}% of its {w['label'].lower()} allowance left with {dur(left)} to go. Put heavier work here.")
 
-    day = now.strftime("%a %b %-d") if os.name != "nt" else now.strftime("%a %b %d")
+    day = f"{midnight:%a %b} {midnight.day}"
     subject = f"AI usage {day}: {fmt(total)} tokens"
-    text = [f"AI usage for {day}", "", f"Total today: {fmt(total)} tokens", ""]
+    text = [f"AI usage for {day}", "", f"Total: {fmt(total)} tokens", ""]
     text += [f"{r[0]}: {r[1]} tokens, {r[2]} replies (7-day average {r[3]}/day, mostly {r[4]})" for r in usage_rows] or ["No usage recorded today."]
     if limit_rows:
         text += ["", "Limits right now:"] + [f"{r[0]} {r[1]}: {r[2]}, {r[3]} ({r[4]})" for r in limit_rows]
@@ -137,7 +142,7 @@ def build(buckets, state, now):
         tr = "".join("<tr>" + "".join(f'<td style="padding:6px 10px;border-bottom:1px solid #eee">{html.escape(c)}</td>' for c in r) + "</tr>" for r in rows)
         return f'<table cellspacing="0" style="border-collapse:collapse;font-size:14px">{"<tr>" + th + "</tr>"}{tr}</table>'
 
-    body = f'<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;color:#111"><h2 style="margin:0 0 4px">AI usage for {html.escape(day)}</h2><p style="font-size:22px;margin:0 0 16px"><b>{fmt(total)}</b> tokens today</p>'
+    body = f'<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;color:#111"><h2 style="margin:0 0 4px">AI usage for {html.escape(day)}</h2><p style="font-size:22px;margin:0 0 16px"><b>{fmt(total)}</b> tokens</p>'
     body += table(["Account", "Tokens", "Replies", "7-day avg/day", "Top model"], usage_rows) if usage_rows else "<p>No usage recorded today.</p>"
     if limit_rows:
         body += '<h3 style="margin:20px 0 6px">Limits right now</h3>' + table(["Account", "Window", "Used", "Reset", "Source"], limit_rows)
@@ -152,17 +157,21 @@ def main():
     if not URL or not KEY:
         sys.exit("SUPABASE_URL and SUPABASE_KEY are required")
     now = datetime.now(ZoneInfo(os.environ.get("REPORT_TZ") or "UTC"))
-    day = now.strftime("%Y-%m-%d")
-    if not force:
-        if now.hour < int(os.environ.get("REPORT_HOUR") or 21):
-            return print(f"Too early ({now:%H:%M} local). Nothing sent.")
-        last = sb("usage_state?select=data&key=eq.email:last_sent")
-        if last and (last[0].get("data") or {}).get("day") == day:
-            return print("Already sent today.")
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if not force:
+        last = sb("usage_state?select=data&key=eq.email:last_sent")
+        last_day = ((last[0].get("data") or {}).get("day") or "") if last else ""
+        if now.hour < int(os.environ.get("REPORT_HOUR") or 21):
+            # Before the send hour: catch up on yesterday if its evening run never happened.
+            midnight = midnight - timedelta(days=1)
+            if last_day >= f"{midnight:%Y-%m-%d}" or not last_day:
+                return print(f"Too early ({now:%H:%M} local). Nothing sent.")
+        elif last_day == f"{midnight:%Y-%m-%d}":
+            return print("Already sent today.")
+    day = f"{midnight:%Y-%m-%d}"
     buckets = fetch_buckets((midnight - timedelta(days=7)).astimezone(timezone.utc))
     state = sb("usage_state?select=key,data")
-    subject, text, body = build(buckets, state, now)
+    subject, text, body = build(buckets, state, now, midnight)
     if dry:
         return print(f"Subject: {subject}\n\n{text}\n\n--- HTML ---\n{body}")
     user, password = os.environ.get("GMAIL_USER"), os.environ.get("GMAIL_APP_PASSWORD")
