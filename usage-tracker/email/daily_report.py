@@ -93,11 +93,15 @@ def build(buckets, state, now, midnight=None):
         elif t >= week_start:
             week[key] = week.get(key, 0) + tokens(b)
 
-    limits = {}
+    limits, stale = {}, []
     for r in state:
         d = r.get("data") or {}
         if r["key"].startswith("limits:"):
             limits[(d["provider"], d["account"])] = (d.get("source", ""), d.get("windows", []))
+        if r["key"].startswith("machine:") and d.get("at"):
+            quiet = now - datetime.fromisoformat(d["at"].replace("Z", "+00:00"))
+            if quiet > timedelta(hours=2):
+                stale.append(f"The collector on {d.get('machine', r['key'][8:])} has not reported for {dur(quiet)}. Usage from that PC is missing until it is restarted.")
         if r["key"] == "manual":
             for m in d.get("accounts", []):
                 if m.get("resets_at"):
@@ -111,7 +115,7 @@ def build(buckets, state, now, midnight=None):
         top = max(d["models"], key=d["models"].get) if d["models"] else "-"
         usage_rows.append((name(*key), fmt(d["tokens"]), str(d["replies"]), fmt(avg), top))
 
-    limit_rows, tips = [], []
+    limit_rows, tips = [], list(stale)
     for key in sorted(limits):
         source, windows = limits[key]
         for w in windows:
@@ -135,7 +139,7 @@ def build(buckets, state, now, midnight=None):
     if limit_rows:
         text += ["", "Limits right now:"] + [f"{r[0]} {r[1]}: {r[2]}, {r[3]} ({r[4]})" for r in limit_rows]
     if tips:
-        text += ["", "For tomorrow:"] + [f"- {t}" for t in tips]
+        text += ["", "Notes:"] + [f"- {t}" for t in tips]
 
     def table(head, rows):
         th = "".join(f'<th align="left" style="padding:6px 10px;border-bottom:2px solid #ddd">{html.escape(h)}</th>' for h in head)
@@ -147,7 +151,7 @@ def build(buckets, state, now, midnight=None):
     if limit_rows:
         body += '<h3 style="margin:20px 0 6px">Limits right now</h3>' + table(["Account", "Window", "Used", "Reset", "Source"], limit_rows)
     if tips:
-        body += '<h3 style="margin:20px 0 6px">For tomorrow</h3><ul>' + "".join(f"<li>{html.escape(t)}</li>" for t in tips) + "</ul>"
+        body += '<h3 style="margin:20px 0 6px">Notes</h3><ul>' + "".join(f"<li>{html.escape(t)}</li>" for t in tips) + "</ul>"
     body += '<p style="color:#777;font-size:12px">Tokens are new input, output and cache writes. Chat-app usage appears only where you entered a reading.</p></div>'
     return subject, "\n".join(text), body
 
