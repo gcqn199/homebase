@@ -94,9 +94,14 @@ Variables: `REPORT_TZ` (e.g. `America/Chicago`), `REPORT_HOUR` (0-23, default 21
 
 The workflow `.github/workflows/usage-daily-email.yml` checks every hour and sends once per day after that hour. It only runs once the file is on `main`. To test, open **Actions → AI usage daily email → Run workflow** with "force" ticked. GitHub pauses scheduled workflows after 60 days with no commits to the repo; it emails you first, and one click re-enables it.
 
-### 7. Run something when a limit resets (optional)
+### 7. Run something when a limit resets or nears its cap (optional)
 
-Set `on_reset` in `config.json` to any command. The collector runs it when a tracked window resets, with `AIUT_PROVIDER`, `AIUT_ACCOUNT` and `AIUT_WINDOW` (`five_hour`, `seven_day`, `daily`) set. Example on Debian: `notify-send "AI limit reset" "$AIUT_PROVIDER $AIUT_ACCOUNT"`. A reset is only noticed for windows that had a reading, and only while the collector is running.
+Two hooks in `config.json` run any command you choose. Each sets `AIUT_PROVIDER`, `AIUT_ACCOUNT`, `AIUT_WINDOW` (`five_hour`, `seven_day`, `daily`), `AIUT_USED` (percent used) and `AIUT_RESETS_AT`.
+
+- `on_reset` runs once when a tracked window resets.
+- `on_limit` runs once per window when usage passes `limit_alert_pct` (default 90).
+
+Example on Debian: `"on_limit": "notify-send \"AI limit\" \"$AIUT_PROVIDER $AIUT_ACCOUNT at $AIUT_USED%\""`. Hooks only see windows that have a reading, and only while the collector is running.
 
 ## Security note
 

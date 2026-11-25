@@ -140,3 +140,21 @@ test("push: upserts buckets, limits and a heartbeat, and retries what failed", a
   assert.equal(got[1].rows.at(-1).key, "machine:pc1");
   assert.match(summary(state, cfg), /claude\/main/);
 });
+
+test("hooks: on_limit fires once when a window passes the threshold, on_reset once after it resets", async () => {
+  const dir = tmp();
+  const log = path.join(dir, "hooks.log");
+  const hook = (name) => `node -e "require('fs').appendFileSync(process.argv[1], '${name} '+process.env.AIUT_WINDOW+' '+process.env.AIUT_USED+'\\\\n')" "${log}"`;
+  const cfg = { accounts: [], on_limit: hook("limit"), on_reset: hook("reset"), limit_alert_pct: 80 };
+  const state = loadState("/nonexistent");
+  const soon = new Date(Date.now() + 3600e3).toISOString();
+  state.limits["claude|main"] = { provider: "claude", account: "main", observed_at: new Date().toISOString(), source: "reported",
+    windows: [{ key: "five_hour", label: "5-hour", window_minutes: 300, used_pct: 85, resets_at: soon }, { key: "seven_day", label: "Weekly", window_minutes: 10080, used_pct: 40, resets_at: soon }] };
+  scan(state, cfg);
+  scan(state, cfg);
+  state.limits["claude|main"].windows[0].resets_at = new Date(Date.now() - 1000).toISOString();
+  scan(state, cfg);
+  scan(state, cfg);
+  await new Promise((r) => setTimeout(r, 1500));
+  assert.deepEqual(fs.readFileSync(log, "utf8").trim().split("\n").sort(), ["limit five_hour 85", "reset five_hour 85"]);
+});
