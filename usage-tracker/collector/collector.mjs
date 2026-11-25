@@ -360,23 +360,34 @@ function setLimits(state, provider, account, observedAt, windows, source) {
   state.limits[key] = { provider, account, observed_at: at, source, windows };
 }
 
+function runHook(command, env, log, name) {
+  const child = spawn(command, { shell: true, detached: true, stdio: "ignore", env: { ...process.env, ...env } });
+  child.on("error", (e) => log(`${name} failed: ${e.message}`));
+  child.unref();
+}
+
+/* on_reset: a window has reset. on_limit: a window has passed limit_alert_pct (default 90). Each fires once per window. */
 function fireResetHooks(state, cfg, log) {
   const now = Date.now();
+  const threshold = Number.isFinite(+cfg.limit_alert_pct) && +cfg.limit_alert_pct > 0 ? +cfg.limit_alert_pct : 90;
+  state.alerted ||= {};
   for (const lim of Object.values(state.limits)) {
     for (const w of lim.windows) {
       const k = `${lim.provider}|${lim.account}|${w.key}`;
-      if (new Date(w.resets_at).getTime() > now || state.fired[k] === w.resets_at) continue;
+      const env = { AIUT_PROVIDER: lim.provider, AIUT_ACCOUNT: lim.account, AIUT_WINDOW: w.key, AIUT_USED: String(Math.round(w.used_pct)), AIUT_RESETS_AT: w.resets_at };
+      const resetsAt = new Date(w.resets_at).getTime();
+      if (resetsAt > now) {
+        if (w.used_pct >= threshold && state.alerted[k] !== w.resets_at) {
+          state.alerted[k] = w.resets_at;
+          log(`limit: ${lim.provider}/${lim.account} ${w.label} at ${Math.round(w.used_pct)}%`);
+          if (cfg.on_limit) runHook(cfg.on_limit, env, log, "on_limit");
+        }
+        continue;
+      }
+      if (state.fired[k] === w.resets_at) continue;
       state.fired[k] = w.resets_at;
       log(`reset: ${lim.provider}/${lim.account} ${w.label} window`);
-      if (!cfg.on_reset) continue;
-      const child = spawn(cfg.on_reset, {
-        shell: true,
-        detached: true,
-        stdio: "ignore",
-        env: { ...process.env, AIUT_PROVIDER: lim.provider, AIUT_ACCOUNT: lim.account, AIUT_WINDOW: w.key },
-      });
-      child.on("error", (e) => log(`on_reset failed: ${e.message}`));
-      child.unref();
+      if (cfg.on_reset) runHook(cfg.on_reset, env, log, "on_reset");
     }
   }
 }
@@ -504,6 +515,7 @@ async function setup(cfgFile, stateFile, log) {
     interval_seconds: old.interval_seconds || 60,
     accounts: old.accounts?.length ? old.accounts : defaultAccounts(),
     on_reset: old.on_reset || "",
+    on_limit: old.on_limit || "",
   };
   rl.close();
   if (!/^https?:\/\//.test(cfg.supabase_url) || !cfg.supabase_key) throw new Error("A Supabase URL and key are required. Nothing was changed.");
