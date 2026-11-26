@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url";
 import { scan, push, loadState, summary } from "./collector.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+// Never read the real Claude desktop app file on the machine running the tests.
+process.env.AIUT_CLAUDE_DESKTOP_USAGE = path.join(os.tmpdir(), "aiut-no-such-file.json");
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "aiut-"));
 const write = (file, lines) => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -144,7 +146,7 @@ test("push: upserts buckets, limits and a heartbeat, and retries what failed", a
 test("hooks: on_limit fires once when a window passes the threshold, on_reset once after it resets", async () => {
   const dir = tmp();
   const log = path.join(dir, "hooks.log");
-  const hook = (name) => `node -e "require('fs').appendFileSync(process.argv[1], '${name} '+process.env.AIUT_WINDOW+' '+process.env.AIUT_USED+'\\\\n')" "${log}"`;
+  const hook = (name) => `node -e "require('fs').appendFileSync(process.argv[1], '${name} '+process.env.AIUT_WINDOW+' '+process.env.AIUT_USED+String.fromCharCode(10))" "${log}"`;
   const cfg = { accounts: [], on_limit: hook("limit"), on_reset: hook("reset"), limit_alert_pct: 80 };
   const state = loadState("/nonexistent");
   const soon = new Date(Date.now() + 3600e3).toISOString();
@@ -157,4 +159,34 @@ test("hooks: on_limit fires once when a window passes the threshold, on_reset on
   scan(state, cfg);
   await new Promise((r) => setTimeout(r, 1500));
   assert.deepEqual(fs.readFileSync(log, "utf8").trim().split("\n").sort(), ["limit five_hour 85", "reset five_hour 85"]);
+});
+
+test("antigravity: counts each model turn once from transcript logs", () => {
+  const dir = tmp();
+  const file = path.join(dir, "antigravity", "brain", "abc", ".system_generated", "logs", "transcript.jsonl");
+  const turn = (step, inp, cache, out, extra = {}) => ({ step_index: step, source: "MODEL", created_at: ts(2), model: "gemini-3-pro", input_tokens: inp, cache_read_tokens: cache, output_tokens: out, ...extra });
+  write(file, [{ step_index: 0, source: "USER", created_at: ts(3) }, turn(1, 29664, 0, 500), turn(6, 7270, 29665, 300)]);
+  const cfg = { accounts: [{ provider: "antigravity", account: "main", dir }] };
+  const state = loadState("/nonexistent");
+  scan(state, cfg);
+  assert.deepEqual(totals(state, "antigravity"), { input: 36934, output: 800, cache_read: 29665, cache_write: 0, messages: 2 });
+  fs.appendFileSync(file, JSON.stringify(turn(6, 7270, 29665, 300)) + "\n" + JSON.stringify(turn(13, 19757, 36936, 100, { created_at: Date.now() - 60000 })) + "\n");
+  scan(state, cfg);
+  assert.deepEqual(totals(state, "antigravity"), { input: 56691, output: 900, cache_read: 66601, cache_write: 0, messages: 3 });
+});
+
+test("claude desktop: reads the newest plan-usage sample and keeps a known reset time", () => {
+  const dir = tmp();
+  const file = path.join(dir, "plan-usage-history.json");
+  const t1 = Date.now() - 120000, t2 = Date.now() - 60000;
+  fs.writeFileSync(file, JSON.stringify({ version: 2, samples: [{ t: t2, org: "o", u: { fh: 41, sd: 12 } }, { t: t1, org: "o", u: { fh: 30, sd: 11 } }] }));
+  const state = loadState("/nonexistent");
+  const reset = new Date(Date.now() + 2 * 3600e3).toISOString();
+  state.limits["claude|main"] = { provider: "claude", account: "main", observed_at: new Date(t1 - 60000).toISOString(), source: "reported",
+    windows: [{ key: "five_hour", label: "5-hour", window_minutes: 300, used_pct: 20, resets_at: reset }] };
+  scan(state, { accounts: [{ provider: "claude", account: "main", dir, desktop_usage_file: file }] });
+  const lim = state.limits["claude|main"];
+  assert.equal(lim.observed_at, new Date(t2).toISOString());
+  assert.deepEqual(lim.windows.map((w) => [w.key, w.used_pct, w.resets_at]), [["five_hour", 41, reset], ["seven_day", 12, null]]);
+  assert.match(summary(state, { accounts: [{ provider: "claude", account: "main" }] }), /Weekly: 12% used(?!,)/);
 });

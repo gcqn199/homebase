@@ -186,8 +186,8 @@ async function saveManual(list) {
 }
 
 /* ---------- model ---------- */
-const KNOWN = { claude: ["Claude", "--s1"], codex: ["Codex / ChatGPT", "--s2"], chatgpt: ["Codex / ChatGPT", "--s2"], gemini: ["Gemini", "--s3"] };
-const EXTRA = ["--s4", "--s5", "--s6", "--s7", "--s8"];
+const KNOWN = { claude: ["Claude", "--s1"], codex: ["Codex / ChatGPT", "--s2"], chatgpt: ["Codex / ChatGPT", "--s2"], gemini: ["Gemini", "--s3"], antigravity: ["Antigravity", "--s4"] };
+const EXTRA = ["--s5", "--s6", "--s7", "--s8"];
 function providerInfo(p, all) {
   const k = String(p).toLowerCase();
   if (KNOWN[k]) return { label: KNOWN[k][0], color: `var(${KNOWN[k][1]})` };
@@ -235,6 +235,12 @@ const windowName = (min) => ({ 180: "3-hour", 300: "5-hour", 1440: "Daily", 1008
 
 /* Compare how much is used with how much of the window has gone by. */
 function judge(w, now) {
+  if (!w.resets_at) { // reading with no known reset time (Claude desktop app)
+    const used = Math.max(0, Math.min(100, w.used_pct)), o = { ...w, used, elapsed: null, left: Infinity, noReset: true };
+    if (used >= 100) return { ...o, tone: "crit", icon: "✕", note: "Limit reached. Reset time unknown." };
+    if (used >= 90) return { ...o, tone: "crit", icon: "!", note: "Nearly out. Switch to another account." };
+    return { ...o, tone: "ok", icon: "•", note: "Reset time unknown until Claude Code reports it." };
+  }
   const end = new Date(w.resets_at).getTime(), len = (w.window_minutes || 300) * 60000;
   const left = end - now;
   if (left <= 0) return { ...w, done: true, used: 0, elapsed: 0, left: 0, tone: "good", icon: "✓", note: "Reset. Full allowance available." };
@@ -265,7 +271,7 @@ function render() {
   // Best account to use now: the most allowance that expires soonest, skipping accounts with any window nearly spent.
   const open = accts.filter((a) => a.windows.length && !a.windows.some((w) => w.tone === "crit"));
   const pick = open.map((a) => {
-    const w = a.windows.filter((x) => !x.done).sort((x, y) => x.left - y.left)[0];
+    const w = a.windows.filter((x) => !x.done && !x.noReset).sort((x, y) => x.left - y.left)[0];
     const spare = 100 - Math.max(...a.windows.map((x) => x.used));
     return { a, w, spare, score: w ? spare / Math.max(w.left / 36e5, 0.25) : spare / 5 };
   }).sort((x, y) => y.score - x.score)[0];
@@ -293,8 +299,8 @@ function render() {
     h += `<div class="acct-sub">${a.manual && !a.today ? "" : `${fmt(a.today)} tokens today · ${fmt(a.last5h)} in the last 5h`}${a.observed ? `${a.manual && !a.today ? "" : " · "}reading ${ago(a.observed)}` : ""}</div>`;
     if (!a.windows.length) h += `<div class="empty">${a.manual ? "No reading yet. Tap Update when the app shows your usage or a limit message." : "No limit reading. Token counts only."}</div>`;
     for (const w of a.windows) {
-      h += `<div class="meter"><div class="meter-top"><span>${esc(w.label)}</span><span class="fig">${w.done ? "0%" : Math.round(w.used) + "% used"}${w.done ? "" : ` · resets in ${dur(w.left)}`}</span></div>
-        <div class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(w.used)}" aria-label="${esc(w.label)} used"><i class="${w.tone === "crit" ? "crit" : w.tone === "warn" ? "warn" : ""}" style="width:${w.used}%"></i>${w.done ? "" : `<u style="left:calc(${w.elapsed}% - 1px)" title="Time elapsed in this window"></u>`}</div>
+      h += `<div class="meter"><div class="meter-top"><span>${esc(w.label)}</span><span class="fig">${w.done ? "0%" : Math.round(w.used) + "% used"}${w.done || w.noReset ? "" : ` · resets in ${dur(w.left)}`}</span></div>
+        <div class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(w.used)}" aria-label="${esc(w.label)} used"><i class="${w.tone === "crit" ? "crit" : w.tone === "warn" ? "warn" : ""}" style="width:${w.used}%"></i>${w.done || w.noReset ? "" : `<u style="left:calc(${w.elapsed}% - 1px)" title="Time elapsed in this window"></u>`}</div>
         <div class="meter-note"><span aria-hidden="true">${w.icon}</span><span>${esc(w.note)}</span></div></div>`;
     }
     h += `</div>`;

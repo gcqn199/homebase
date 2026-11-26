@@ -37,7 +37,21 @@ function defaultAccounts() {
   add("claude", process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude"));
   add("codex", process.env.CODEX_HOME || path.join(os.homedir(), ".codex"));
   add("gemini", path.join(os.homedir(), ".gemini"));
+  if (fs.existsSync(path.join(os.homedir(), ".gemini", "antigravity")))
+    found.push({ provider: "antigravity", account: "main", dir: path.join(os.homedir(), ".gemini") });
   return found;
+}
+
+/* Where the Claude desktop app keeps its plan usage history on each OS. */
+export function claudeDesktopUsageFile() {
+  if (process.env.AIUT_CLAUDE_DESKTOP_USAGE) return process.env.AIUT_CLAUDE_DESKTOP_USAGE;
+  const base =
+    process.platform === "win32"
+      ? process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming")
+      : process.platform === "darwin"
+        ? path.join(os.homedir(), "Library", "Application Support")
+        : process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+  return path.join(base, "Claude", "plan-usage-history.json");
 }
 
 export function loadConfig(file) {
@@ -45,7 +59,11 @@ export function loadConfig(file) {
   if (fs.existsSync(file)) cfg = JSON.parse(fs.readFileSync(file, "utf8"));
   cfg.machine ||= os.hostname();
   cfg.interval_seconds ||= 60;
-  cfg.accounts = (cfg.accounts?.length ? cfg.accounts : defaultAccounts()).map((a) => ({
+  let accounts = cfg.accounts?.length ? cfg.accounts : defaultAccounts();
+  // Pick up tools installed after setup, unless "auto_discover": false.
+  if (cfg.accounts?.length && cfg.auto_discover !== false)
+    for (const d of defaultAccounts()) if (!accounts.some((a) => a.provider === d.provider)) accounts = [...accounts, d];
+  cfg.accounts = accounts.map((a) => ({
     ...a,
     dir: expand(a.dir),
   }));
@@ -114,7 +132,10 @@ function readNewLines(state, file, cutoff, onLine) {
     f.offset = st.size; // too old to matter: skip without reading
     return;
   }
-  if (st.size < f.offset) f.offset = 0; // file was replaced
+  if (st.size < f.offset) {
+    f.offset = 0; // file was replaced
+    delete f.lastStep;
+  }
   if (st.size === f.offset) return;
   const fd = fs.openSync(file, "r");
   try {
@@ -194,6 +215,56 @@ function scanClaude(state, acct, cutoff) {
     add("seven_day", "Weekly", 10080, r.rate_limits?.seven_day);
     if (windows.length) setLimits(state, "claude", acct.account, r.observed_at, windows, "reported");
   } catch {}
+}
+
+/* Claude desktop app: plan-usage-history.json has the real 5-hour and weekly percentages
+   (no reset times). Reset times from an earlier status-line reading are kept while still ahead. */
+function scanClaudeDesktop(state, acct) {
+  let samples;
+  try {
+    samples = JSON.parse(fs.readFileSync(acct.desktop_usage_file || claudeDesktopUsageFile(), "utf8")).samples;
+  } catch {
+    return;
+  }
+  const last = (Array.isArray(samples) ? samples : []).filter((x) => x && Number.isFinite(+x.t) && x.u).sort((a, b) => a.t - b.t).at(-1);
+  if (!last) return;
+  const prev = state.limits[`claude|${acct.account}`];
+  const keep = (key) => {
+    const w = prev?.windows?.find((x) => x.key === key);
+    return w?.resets_at && new Date(w.resets_at).getTime() > last.t ? w.resets_at : null;
+  };
+  const windows = [];
+  const add = (key, label, minutes, v) => {
+    if (Number.isFinite(+v)) windows.push({ key, label, window_minutes: minutes, used_pct: +v, resets_at: keep(key) });
+  };
+  add("five_hour", "5-hour", 300, last.u.fh);
+  add("seven_day", "Weekly", 10080, last.u.sd);
+  if (windows.length) setLimits(state, "claude", acct.account, new Date(+last.t).toISOString(), windows, "reported");
+}
+
+/* ---------- Antigravity IDE ---------- */
+
+/* Each model turn in brain/<id>/.system_generated/logs/transcript.jsonl logs its tokens.
+   input_tokens already excludes the cached part. */
+function scanAntigravity(state, acct, cutoff) {
+  const files = walk(path.join(acct.dir, "antigravity", "brain"), (p) => path.basename(p) === "transcript.jsonl");
+  for (const file of files) {
+    readNewLines(state, file, cutoff, (o, f) => {
+      if (o.source !== "MODEL" || o.input_tokens == null) return;
+      const step = Number.isFinite(+o.step_index) ? +o.step_index : null;
+      if (step != null && f.lastStep != null && step <= f.lastStep) return; // already counted
+      if (step != null) f.lastStep = step;
+      const c = o.created_at;
+      const t = typeof c === "number" ? (c > 1e12 ? c : c * 1000) : new Date(c).getTime();
+      if (!(t >= cutoff)) return;
+      addToBucket(state, "antigravity", acct.account, o.model, t, {
+        input: num(o.input_tokens),
+        cache_read: num(o.cache_read_tokens),
+        output: num(o.output_tokens),
+        messages: 1,
+      });
+    });
+  }
 }
 
 /* ---------- Codex CLI ---------- */
@@ -366,7 +437,8 @@ function runHook(command, env, log, name) {
   child.unref();
 }
 
-/* on_reset: a window has reset. on_limit: a window has passed limit_alert_pct (default 90). Each fires once per window. */
+/* on_reset: a window has reset. on_limit: a window has passed limit_alert_pct (default 90);
+   it fires again only after usage drops below the threshold or the window resets. */
 function fireResetHooks(state, cfg, log) {
   const now = Date.now();
   const threshold = Number.isFinite(+cfg.limit_alert_pct) && +cfg.limit_alert_pct > 0 ? +cfg.limit_alert_pct : 90;
@@ -374,20 +446,23 @@ function fireResetHooks(state, cfg, log) {
   for (const lim of Object.values(state.limits)) {
     for (const w of lim.windows) {
       const k = `${lim.provider}|${lim.account}|${w.key}`;
-      const env = { AIUT_PROVIDER: lim.provider, AIUT_ACCOUNT: lim.account, AIUT_WINDOW: w.key, AIUT_USED: String(Math.round(w.used_pct)), AIUT_RESETS_AT: w.resets_at };
-      const resetsAt = new Date(w.resets_at).getTime();
-      if (resetsAt > now) {
-        if (w.used_pct >= threshold && state.alerted[k] !== w.resets_at) {
-          state.alerted[k] = w.resets_at;
-          log(`limit: ${lim.provider}/${lim.account} ${w.label} at ${Math.round(w.used_pct)}%`);
-          if (cfg.on_limit) runHook(cfg.on_limit, env, log, "on_limit");
-        }
+      const env = { AIUT_PROVIDER: lim.provider, AIUT_ACCOUNT: lim.account, AIUT_WINDOW: w.key, AIUT_USED: String(Math.round(w.used_pct)), AIUT_RESETS_AT: w.resets_at || "" };
+      if (w.resets_at && new Date(w.resets_at).getTime() <= now) {
+        delete state.alerted[k];
+        if (state.fired[k] === w.resets_at) continue;
+        state.fired[k] = w.resets_at;
+        log(`reset: ${lim.provider}/${lim.account} ${w.label} window`);
+        if (cfg.on_reset) runHook(cfg.on_reset, env, log, "on_reset");
         continue;
       }
-      if (state.fired[k] === w.resets_at) continue;
-      state.fired[k] = w.resets_at;
-      log(`reset: ${lim.provider}/${lim.account} ${w.label} window`);
-      if (cfg.on_reset) runHook(cfg.on_reset, env, log, "on_reset");
+      if (w.used_pct < threshold) {
+        delete state.alerted[k];
+        continue;
+      }
+      if (state.alerted[k]) continue;
+      state.alerted[k] = true;
+      log(`limit: ${lim.provider}/${lim.account} ${w.label} at ${Math.round(w.used_pct)}%`);
+      if (cfg.on_limit) runHook(cfg.on_limit, env, log, "on_limit");
     }
   }
 }
@@ -401,11 +476,14 @@ export function scan(state, cfg, log = () => {}) {
       if (acct.provider === "claude") scanClaude(state, acct, cutoff);
       else if (acct.provider === "codex") scanCodex(state, acct, cutoff);
       else if (acct.provider === "gemini") scanGemini(state, acct, cutoff);
+      else if (acct.provider === "antigravity") scanAntigravity(state, acct, cutoff);
       else log(`unknown provider "${acct.provider}" in config`);
     } catch (e) {
       log(`${acct.provider}/${acct.account}: ${e.message}`);
     }
   }
+  const desktop = cfg.accounts.find((a) => a.provider === "claude" && a.desktop_usage !== false);
+  if (desktop) scanClaudeDesktop(state, desktop);
   // Forget what is older than the retention window.
   const cutIso = new Date(cutoff).toISOString();
   for (const k of Object.keys(state.buckets)) if (k.split("|")[3] < cutIso) delete state.buckets[k];
@@ -483,7 +561,13 @@ export function summary(state, cfg) {
     }
     const lim = state.limits[`${a.provider}|${a.account}`];
     const wins = (lim?.windows || [])
-      .map((w) => (new Date(w.resets_at) <= new Date() ? `${w.label}: reset` : `${w.label}: ${Math.round(w.used_pct)}% used, resets in ${until(w.resets_at)}`))
+      .map((w) =>
+        !w.resets_at
+          ? `${w.label}: ${Math.round(w.used_pct)}% used`
+          : new Date(w.resets_at) <= new Date()
+            ? `${w.label}: reset`
+            : `${w.label}: ${Math.round(w.used_pct)}% used, resets in ${until(w.resets_at)}`,
+      )
       .join("  |  ");
     lines.push(`${(a.provider + "/" + a.account).padEnd(22)} today ${fmt(tokens).padStart(7)} tokens, ${String(msgs).padStart(4)} replies   ${wins || "no limit reading yet"}`);
   }
