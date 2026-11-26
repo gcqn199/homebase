@@ -190,3 +190,15 @@ test("claude desktop: reads the newest plan-usage sample and keeps a known reset
   assert.deepEqual(lim.windows.map((w) => [w.key, w.used_pct, w.resets_at]), [["five_hour", 41, reset], ["seven_day", 12, null]]);
   assert.match(summary(state, { accounts: [{ provider: "claude", account: "main" }] }), /Weekly: 12% used(?!,)/);
 });
+
+test("antigravity: a turn without a model uses the last model named in that file", () => {
+  const dir = tmp();
+  const file = path.join(dir, "antigravity", "brain", "x", ".system_generated", "logs", "transcript.jsonl");
+  write(file, [
+    { step_index: 1, source: "MODEL", created_at: ts(2), model: "gemini-4-neon-high", input_tokens: 10, cache_read_tokens: 0, output_tokens: 1 },
+    { step_index: 2, source: "MODEL", created_at: ts(2), input_tokens: 20, cache_read_tokens: 0, output_tokens: 2 },
+  ]);
+  const state = loadState("/nonexistent");
+  scan(state, { accounts: [{ provider: "antigravity", account: "main", dir }] });
+  assert.deepEqual(Object.keys(state.buckets).map((k) => k.split("|")[2]), ["gemini-4-neon-high"]);
+});
