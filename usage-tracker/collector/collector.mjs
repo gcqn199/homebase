@@ -250,6 +250,7 @@ function scanAntigravity(state, acct, cutoff) {
   const files = walk(path.join(acct.dir, "antigravity", "brain"), (p) => path.basename(p) === "transcript.jsonl");
   for (const file of files) {
     readNewLines(state, file, cutoff, (o, f) => {
+      if (o.model) f.model = o.model; // some turns omit the model; reuse the last one named in this file
       if (o.source !== "MODEL" || o.input_tokens == null) return;
       const step = Number.isFinite(+o.step_index) ? +o.step_index : null;
       if (step != null && f.lastStep != null && step <= f.lastStep) return; // already counted
@@ -257,7 +258,7 @@ function scanAntigravity(state, acct, cutoff) {
       const c = o.created_at;
       const t = typeof c === "number" ? (c > 1e12 ? c : c * 1000) : new Date(c).getTime();
       if (!(t >= cutoff)) return;
-      addToBucket(state, "antigravity", acct.account, o.model, t, {
+      addToBucket(state, "antigravity", acct.account, o.model || f.model, t, {
         input: num(o.input_tokens),
         cache_read: num(o.cache_read_tokens),
         output: num(o.output_tokens),
