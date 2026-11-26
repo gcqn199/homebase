@@ -20,6 +20,8 @@ It lives in this folder and does not touch the Homebase app. Read `STRATEGY.md` 
 | Claude Code | automatic | automatic and exact, once the status line hook is on (step 4) |
 | Codex CLI | automatic | automatic and exact (Codex writes it to its logs) |
 | Gemini CLI | automatic | estimated, only if you set `requests_per_day` for the account |
+| Antigravity IDE | automatic (from its transcript logs) | not available |
+| Claude desktop app | not counted | automatic: the app's own 5-hour and weekly percentages, without reset times (Claude Code's status line adds those) |
 | Chat apps (claude.ai, ChatGPT, Gemini in a browser or phone app) | not available | manual: the providers publish no usage data for these, so you tap **Update** on the dashboard when the app shows your usage or a limit message |
 | Pay-per-token API keys | not built yet | not built yet |
 
@@ -46,6 +48,8 @@ node homebase/usage-tracker/collector/collector.mjs setup
 ```
 
 It saves the config, turns on the Claude Code status line (exact limit percentages), installs the collector to start at every login (a systemd user service on Debian, a scheduled task on Windows), and does a first upload to prove the connection works. Running it again is safe and keeps your earlier answers.
+
+Tools installed after setup are picked up automatically; set `"auto_discover": false` in the config to turn that off. To stop reading the Claude desktop app's usage, set `"desktop_usage": false` on the Claude account.
 
 `node homebase/usage-tracker/collector/collector.mjs status` prints the current numbers in a terminal at any time. The config lives in `~/.ai-usage-tracker/config.json` (on Windows: `C:\Users\you\.ai-usage-tracker\config.json`).
 

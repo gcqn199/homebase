@@ -30,7 +30,7 @@ from zoneinfo import ZoneInfo
 
 URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 KEY = os.environ.get("SUPABASE_KEY", "")
-NAMES = {"claude": "Claude", "codex": "Codex / ChatGPT", "chatgpt": "Codex / ChatGPT", "gemini": "Gemini"}
+NAMES = {"claude": "Claude", "codex": "Codex / ChatGPT", "chatgpt": "Codex / ChatGPT", "gemini": "Gemini", "antigravity": "Antigravity"}
 
 
 def sb(path, body=None, prefer=None):
@@ -119,6 +119,9 @@ def build(buckets, state, now, midnight=None):
     for key in sorted(limits):
         source, windows = limits[key]
         for w in windows:
+            if not w.get("resets_at"):
+                limit_rows.append((name(*key), w["label"], f"{w['used_pct']:.0f}% used", "reset time unknown", source))
+                continue
             left = datetime.fromisoformat(w["resets_at"].replace("Z", "+00:00")) - now
             if left.total_seconds() <= 0:
                 limit_rows.append((name(*key), w["label"], "reset", "full allowance available", source))
