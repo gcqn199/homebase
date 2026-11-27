@@ -237,6 +237,10 @@ const windowName = (min) => ({ 180: "3-hour", 300: "5-hour", 1440: "Daily", 1008
 function judge(w, now) {
   if (!w.resets_at) { // reading with no known reset time (Claude desktop app)
     const used = Math.max(0, Math.min(100, w.used_pct)), o = { ...w, used, elapsed: null, left: Infinity, noReset: true };
+    if (w.key === "quota") // Antigravity quota errors (HTTP 429), not a usage percentage
+      return used >= 100
+        ? { ...o, tone: "crit", icon: "✕", note: `Quota exhausted (429)${w.model ? " on " + w.model : ""}${w.since ? ", since " + new Date(w.since).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}. Switch accounts or wait.` }
+        : { ...o, tone: "ok", icon: "✓", note: "No quota errors in the last hour." };
     if (used >= 100) return { ...o, tone: "crit", icon: "✕", note: "Limit reached. Reset time unknown." };
     if (used >= 90) return { ...o, tone: "crit", icon: "!", note: "Nearly out. Switch to another account." };
     return { ...o, tone: "ok", icon: "•", note: "Reset time unknown until Claude Code reports it." };
@@ -286,7 +290,7 @@ function render() {
     h += `<div class="card advice">`;
     h += pick ? `<div><span>→</span><span><b>Use next:</b> ${who(pick.a)} (${Math.round(pick.spare)}% free${pick.w ? `, ${esc(pick.w.label.toLowerCase())} window resets in ${dur(pick.w.left)}` : ""})</span></div>`
       : `<div><span>→</span><span><b>Use next:</b> no account has a live reading. Use any, then check back.</span></div>`;
-    for (const x of blocked) h += `<div><span>✕</span><span><b>Avoid:</b> ${who(x.a)}, ${esc(x.w.label.toLowerCase())} at ${Math.round(x.w.used)}%, resets in ${dur(x.w.left)}</span></div>`;
+    for (const x of blocked) h += `<div><span>✕</span><span><b>Avoid:</b> ${who(x.a)}, ${x.w.key === "quota" ? "quota errors (429)" : `${esc(x.w.label.toLowerCase())} at ${Math.round(x.w.used)}%`}${x.w.noReset ? "" : `, resets in ${dur(x.w.left)}`}</span></div>`;
     h += `</div>`;
   }
 
@@ -294,12 +298,12 @@ function render() {
   if (!accts.length) h += `<div class="card empty">Nothing yet. Start the collector on a PC, or add a chat account.</div>`;
   for (const a of accts) {
     const p = info(a.provider);
-    const badge = a.source === "reported" ? "live" : a.source === "estimated" ? "estimated" : a.source === "manual" ? "manual" : "tokens only";
+    const badge = a.source === "error" ? "errors" : a.source === "reported" ? "live" : a.source === "estimated" ? "estimated" : a.source === "manual" ? "manual" : "tokens only";
     h += `<div class="card"><div class="acct-head"><span class="dot" style="background:${p.color}"></span><span class="name">${esc(p.label)} · ${esc(a.account)}</span><span class="badge">${badge}</span>${a.manual ? `<button class="quiet" data-edit="${esc(a.manual.id)}">Update</button>` : ""}</div>`;
     h += `<div class="acct-sub">${a.manual && !a.today ? "" : `${fmt(a.today)} tokens today · ${fmt(a.last5h)} in the last 5h`}${a.observed ? `${a.manual && !a.today ? "" : " · "}reading ${ago(a.observed)}` : ""}</div>`;
     if (!a.windows.length) h += `<div class="empty">${a.manual ? "No reading yet. Tap Update when the app shows your usage or a limit message." : "No limit reading. Token counts only."}</div>`;
     for (const w of a.windows) {
-      h += `<div class="meter"><div class="meter-top"><span>${esc(w.label)}</span><span class="fig">${w.done ? "0%" : Math.round(w.used) + "% used"}${w.done || w.noReset ? "" : ` · resets in ${dur(w.left)}`}</span></div>
+      h += `<div class="meter"><div class="meter-top"><span>${esc(w.label)}</span><span class="fig">${w.key === "quota" ? (w.used >= 100 ? "Exhausted" : "OK") : w.done ? "0%" : Math.round(w.used) + "% used"}${w.done || w.noReset ? "" : ` · resets in ${dur(w.left)}`}</span></div>
         <div class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(w.used)}" aria-label="${esc(w.label)} used"><i class="${w.tone === "crit" ? "crit" : w.tone === "warn" ? "warn" : ""}" style="width:${w.used}%"></i>${w.done || w.noReset ? "" : `<u style="left:calc(${w.elapsed}% - 1px)" title="Time elapsed in this window"></u>`}</div>
         <div class="meter-note"><span aria-hidden="true">${w.icon}</span><span>${esc(w.note)}</span></div></div>`;
     }

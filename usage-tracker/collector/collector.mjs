@@ -246,26 +246,50 @@ function scanClaudeDesktop(state, acct) {
 
 /* Each model turn in brain/<id>/.system_generated/logs/transcript.jsonl logs its tokens.
    input_tokens already excludes the cached part. */
+const QUOTA_QUIET_MS = 60 * 60 * 1000; // a quota episode closes after an hour with no new quota error
+
+/* A quota error (HTTP 429 / RESOURCE_EXHAUSTED) anywhere in a transcript line. Other errors don't count. */
+export function isQuotaError(o) {
+  const text = JSON.stringify(o);
+  return /RESOURCE_EXHAUSTED/i.test(text) || /"(code|status|status_code|statusCode|http_status)"\s*:\s*"?429\b/.test(text);
+}
+
+const lineTime = (c) => (typeof c === "number" ? (c > 1e12 ? c : c * 1000) : c ? new Date(c).getTime() : NaN);
+
 function scanAntigravity(state, acct, cutoff) {
+  state.quota ||= {};
+  const key = `antigravity|${acct.account}`;
+  const ep = (state.quota[key] ||= { open: false });
+  const wasOpen = ep.open;
   const files = walk(path.join(acct.dir, "antigravity", "brain"), (p) => path.basename(p) === "transcript.jsonl");
   for (const file of files) {
     readNewLines(state, file, cutoff, (o, f) => {
       if (o.model) f.model = o.model; // some turns omit the model; reuse the last one named in this file
+      const t = Number.isFinite(lineTime(o.created_at)) ? lineTime(o.created_at) : Date.now();
+      if (isQuotaError(o)) {
+        if (!(t >= cutoff)) return;
+        if (!ep.open) Object.assign(ep, { open: true, opened_at: t });
+        if (!(ep.last_error_at >= t)) ep.last_error_at = t;
+        ep.model = o.model || f.model || ep.model;
+        return;
+      }
       if (o.source !== "MODEL" || o.input_tokens == null) return;
       const step = Number.isFinite(+o.step_index) ? +o.step_index : null;
       if (step != null && f.lastStep != null && step <= f.lastStep) return; // already counted
       if (step != null) f.lastStep = step;
-      const c = o.created_at;
-      const t = typeof c === "number" ? (c > 1e12 ? c : c * 1000) : new Date(c).getTime();
       if (!(t >= cutoff)) return;
-      addToBucket(state, "antigravity", acct.account, o.model || f.model, t, {
-        input: num(o.input_tokens),
-        cache_read: num(o.cache_read_tokens),
-        output: num(o.output_tokens),
-        messages: 1,
-      });
+      const d = { input: num(o.input_tokens), cache_read: num(o.cache_read_tokens), output: num(o.output_tokens), messages: 1 };
+      // A successful turn after the last quota error ends the episode.
+      if (ep.open && t > ep.last_error_at && d.input + d.output > 0) ep.open = false;
+      addToBucket(state, "antigravity", acct.account, o.model || f.model, t, d);
     });
   }
+  if (ep.open && Date.now() - ep.last_error_at > QUOTA_QUIET_MS) ep.open = false;
+  // Report the episode as a "Quota" window: 100% while open, 0% once closed, so on_limit fires once per episode.
+  if (ep.open !== wasOpen || (ep.open && !state.limits[key]))
+    setLimits(state, "antigravity", acct.account, new Date().toISOString(),
+      [{ key: "quota", label: "Quota", window_minutes: null, used_pct: ep.open ? 100 : 0, resets_at: null, model: ep.model || null,
+         since: ep.opened_at ? new Date(ep.opened_at).toISOString() : null }], "error");
 }
 
 /* ---------- Codex CLI ---------- */
@@ -447,7 +471,15 @@ function fireResetHooks(state, cfg, log) {
   for (const lim of Object.values(state.limits)) {
     for (const w of lim.windows) {
       const k = `${lim.provider}|${lim.account}|${w.key}`;
-      const env = { AIUT_PROVIDER: lim.provider, AIUT_ACCOUNT: lim.account, AIUT_WINDOW: w.key, AIUT_USED: String(Math.round(w.used_pct)), AIUT_RESETS_AT: w.resets_at || "" };
+      const env = {
+        AIUT_PROVIDER: lim.provider,
+        AIUT_ACCOUNT: lim.account,
+        AIUT_WINDOW: w.key,
+        AIUT_USED: String(Math.round(w.used_pct)),
+        AIUT_RESETS_AT: w.resets_at || "",
+        AIUT_REASON: lim.source === "error" ? "quota_error" : "usage",
+        AIUT_MODEL: w.model || "",
+      };
       if (w.resets_at && new Date(w.resets_at).getTime() <= now) {
         delete state.alerted[k];
         if (state.fired[k] === w.resets_at) continue;
