@@ -20,7 +20,7 @@ It lives in this folder and does not touch the Homebase app. Read `STRATEGY.md` 
 | Claude Code | automatic | automatic and exact, once the status line hook is on (step 4) |
 | Codex CLI | automatic | automatic and exact (Codex writes it to its logs) |
 | Gemini CLI | automatic | estimated, only if you set `requests_per_day` for the account |
-| Antigravity IDE | automatic (from its transcript logs) | not available |
+| Antigravity IDE | automatic (from its transcript logs) | no percentage; a "Quota" warning while requests fail with quota errors (HTTP 429 / RESOURCE_EXHAUSTED), if the transcript logs them |
 | Claude desktop app | not counted | automatic: the app's own 5-hour and weekly percentages, without reset times (Claude Code's status line adds those) |
 | Chat apps (claude.ai, ChatGPT, Gemini in a browser or phone app) | not available | manual: the providers publish no usage data for these, so you tap **Update** on the dashboard when the app shows your usage or a limit message |
 | Pay-per-token API keys | not built yet | not built yet |
@@ -104,6 +104,10 @@ Two hooks in `config.json` run any command you choose. Each sets `AIUT_PROVIDER`
 
 - `on_reset` runs once when a tracked window resets.
 - `on_limit` runs once per window when usage passes `limit_alert_pct` (default 90).
+
+Both hooks also set `AIUT_REASON` (`usage`, or `quota_error` for the Antigravity quota warning below) and `AIUT_MODEL` (the model named in a quota error, when known).
+
+**Antigravity quota errors.** Antigravity reports no usage percentage, but its transcript logs can show requests failing with a quota error (HTTP 429 / `RESOURCE_EXHAUSTED`). The first such error opens an episode: the account gets a "Quota" window at 100% and `on_limit` fires once with `AIUT_REASON=quota_error`. The episode ends at the next successful model turn, or after an hour with no new quota error; the window then drops to 0%, so the next episode alerts again. Other errors are ignored.
 
 Example on Debian: `"on_limit": "notify-send \"AI limit\" \"$AIUT_PROVIDER $AIUT_ACCOUNT at $AIUT_USED%\""`. Hooks only see windows that have a reading, and only while the collector is running.
 

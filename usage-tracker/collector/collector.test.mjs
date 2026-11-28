@@ -202,3 +202,79 @@ test("antigravity: a turn without a model uses the last model named in that file
   scan(state, { accounts: [{ provider: "antigravity", account: "main", dir }] });
   assert.deepEqual(Object.keys(state.buckets).map((k) => k.split("|")[2]), ["gemini-4-neon-high"]);
 });
+
+/* ---------- Antigravity quota errors ---------- */
+
+const agFile = (dir) => path.join(dir, "antigravity", "brain", "q", ".system_generated", "logs", "transcript.jsonl");
+const agTurn = (step, minAgo) => ({ step_index: step, source: "MODEL", created_at: ts(minAgo), model: "gemini-4-neon-high", input_tokens: 100, cache_read_tokens: 0, output_tokens: 10 });
+const agError = (step, minAgo, extra = {}) => ({ step_index: step, source: "SYSTEM", created_at: ts(minAgo), model: "gemini-4-neon-high",
+  error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "Resource has been exhausted (e.g. check quota)." }, ...extra });
+const append = (file, lines) => fs.appendFileSync(file, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+const hookCfg = (dir, log) => ({
+  accounts: [{ provider: "antigravity", account: "main", dir }],
+  on_limit: `node -e "require('fs').appendFileSync(process.argv[1], process.env.AIUT_REASON+' '+process.env.AIUT_WINDOW+' '+process.env.AIUT_MODEL+String.fromCharCode(10))" "${log}"`,
+});
+const quota = (state) => state.limits["antigravity|main"]?.windows[0];
+const hookLines = async (log) => {
+  await new Promise((r) => setTimeout(r, 1500));
+  return fs.existsSync(log) ? fs.readFileSync(log, "utf8").trim().split("\n").filter(Boolean) : [];
+};
+
+test("antigravity quota: an error opens an episode and fires on_limit once; repeats don't refire", async () => {
+  const dir = tmp();
+  const log = path.join(dir, "hook.log");
+  write(agFile(dir), [agTurn(1, 30), agError(2, 20)]);
+  const cfg = hookCfg(dir, log);
+  const state = loadState("/nonexistent");
+  scan(state, cfg);
+  assert.equal(quota(state).used_pct, 100);
+  assert.equal(state.limits["antigravity|main"].source, "error");
+  append(agFile(dir), [agError(3, 15), { ...agError(4, 10), error: undefined, message: "status: RESOURCE_EXHAUSTED" }]);
+  scan(state, cfg);
+  scan(state, cfg);
+  assert.equal(quota(state).used_pct, 100);
+  assert.deepEqual(await hookLines(log), ["quota_error quota gemini-4-neon-high"]);
+});
+
+test("antigravity quota: a successful turn closes the episode and a new error fires again", async () => {
+  const dir = tmp();
+  const log = path.join(dir, "hook.log");
+  write(agFile(dir), [agError(1, 30)]);
+  const cfg = hookCfg(dir, log);
+  const state = loadState("/nonexistent");
+  scan(state, cfg);
+  append(agFile(dir), [agTurn(2, 20)]);
+  scan(state, cfg);
+  assert.equal(quota(state).used_pct, 0);
+  append(agFile(dir), [agError(3, 5)]);
+  scan(state, cfg);
+  assert.equal(quota(state).used_pct, 100);
+  assert.equal((await hookLines(log)).length, 2);
+});
+
+test("antigravity quota: the episode closes after an hour with no new quota error", () => {
+  const dir = tmp();
+  write(agFile(dir), [agError(1, 120)]);
+  const state = loadState("/nonexistent");
+  scan(state, { accounts: [{ provider: "antigravity", account: "main", dir }] });
+  assert.equal(state.quota["antigravity|main"].open, false);
+  assert.ok(!quota(state) || quota(state).used_pct === 0, "an episode that already ended reports no open quota window");
+});
+
+test("antigravity quota: non-quota errors are ignored and token counting is unchanged", () => {
+  const dir = tmp();
+  write(agFile(dir), [
+    agTurn(1, 30),
+    { step_index: 2, source: "SYSTEM", created_at: ts(25), error: { code: 500, status: "INTERNAL", message: "Internal error" } },
+    agError(3, 20),
+    agTurn(4, 10),
+  ]);
+  const state = loadState("/nonexistent");
+  scan(state, { accounts: [{ provider: "antigravity", account: "main", dir }] });
+  assert.deepEqual(totals(state, "antigravity"), { input: 200, output: 20, cache_read: 0, cache_write: 0, messages: 2 });
+  const dir2 = tmp();
+  write(agFile(dir2), [{ step_index: 1, source: "SYSTEM", created_at: ts(5), error: { code: 500, status: "INTERNAL" } }]);
+  const state2 = loadState("/nonexistent");
+  scan(state2, { accounts: [{ provider: "antigravity", account: "main", dir: dir2 }] });
+  assert.ok(!quota(state2) || quota(state2).used_pct === 0);
+});

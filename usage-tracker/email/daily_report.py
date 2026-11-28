@@ -119,6 +119,11 @@ def build(buckets, state, now, midnight=None):
     for key in sorted(limits):
         source, windows = limits[key]
         for w in windows:
+            if w.get("key") == "quota":
+                if w["used_pct"] >= 100:
+                    limit_rows.append((name(*key), "Quota", "exhausted (429)", "until a request succeeds", source))
+                    tips.append(f"{name(*key)} is hitting quota errors (429){' on ' + w['model'] if w.get('model') else ''}. Use another account until it recovers.")
+                continue
             if not w.get("resets_at"):
                 limit_rows.append((name(*key), w["label"], f"{w['used_pct']:.0f}% used", "reset time unknown", source))
                 continue
